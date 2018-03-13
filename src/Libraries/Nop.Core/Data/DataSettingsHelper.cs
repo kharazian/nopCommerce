@@ -1,4 +1,6 @@
-﻿namespace Nop.Core.Data
+﻿using Nop.Core.Infrastructure;
+
+namespace Nop.Core.Data
 {
     /// <summary>
     /// Data settings helper
@@ -16,6 +18,7 @@
             if (!_databaseIsInstalled.HasValue)
             {
                 var manager = new DataSettingsManager();
+
                 var settings = manager.LoadSettings(reloadSettings:true);
                 _databaseIsInstalled = settings != null && !string.IsNullOrEmpty(settings.DataConnectionString);
             }

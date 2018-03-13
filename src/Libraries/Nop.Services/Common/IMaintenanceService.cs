@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using System.IO;
+using Microsoft.Extensions.FileProviders;
 using Nop.Core;
 
 namespace Nop.Services.Common
@@ -27,7 +27,7 @@ namespace Nop.Services.Common
         /// Gets all backup files
         /// </summary>
         /// <returns>Backup file collection</returns>
-        IList<FileInfo> GetAllBackupFiles();
+        IList<string> GetAllBackupFiles();
 
         /// <summary>
         /// Creates a backup of the database
