@@ -154,17 +154,17 @@ namespace Nop.Core.Plugins
         /// <summary>
         /// Indicates whether assembly file is already loaded
         /// </summary>
-        /// <param name="fileInfo">File info</param>
-        /// <returns>Result</returns>
-        private static bool IsAlreadyLoaded(string fileInfo)
+        /// <param name="filePath">File path</param>
+        /// <returns>True if assembly file is already loaded; otherwise false</returns>
+        private static bool IsAlreadyLoaded(string filePath)
         {
             //search library file name in base directory to ignore already existing (loaded) libraries
             //(we do it because not all libraries are loaded immediately after application start)
-            if (_baseAppLibraries.Any(sli => sli.Equals(_fileProvider.GetFileName(fileInfo), StringComparison.InvariantCultureIgnoreCase)))
+            if (_baseAppLibraries.Any(sli => sli.Equals(_fileProvider.GetFileName(filePath), StringComparison.InvariantCultureIgnoreCase)))
                 return true;
 
             //compare full assembly name
-            //var fileAssemblyName = AssemblyName.GetAssemblyName(fileInfo.FullName);
+            //var fileAssemblyName = AssemblyName.GetAssemblyName(filePath);
             //foreach (var a in AppDomain.CurrentDomain.GetAssemblies())
             //{
             //    if (a.FullName.Equals(fileAssemblyName.FullName, StringComparison.InvariantCultureIgnoreCase))
@@ -175,9 +175,9 @@ namespace Nop.Core.Plugins
             //do not compare the full assembly name, just filename
             try
             {
-                var fileNameWithoutExt = _fileProvider.GetFileNameWithoutExtension(fileInfo);
+                var fileNameWithoutExt = _fileProvider.GetFileNameWithoutExtension(filePath);
                 if (string.IsNullOrEmpty(fileNameWithoutExt))
-                    throw new Exception($"Cannot get file extension for {_fileProvider.GetFileName(fileInfo)}");
+                    throw new Exception($"Cannot get file extension for {_fileProvider.GetFileName(filePath)}");
 
                 foreach (var a in AppDomain.CurrentDomain.GetAssemblies())
                 {
@@ -239,7 +239,7 @@ namespace Nop.Core.Plugins
         /// <param name="config">Config</param>
         /// <param name="applicationPartManager">Application part manager</param>
         /// <param name="plug">Plugin file info</param>
-        /// <returns></returns>
+        /// <returns>Assembly</returns>
         private static Assembly RegisterPluginDefinition(NopConfig config, ApplicationPartManager applicationPartManager, string plug)
         {
             //we can now register the plugin definition
@@ -276,20 +276,20 @@ namespace Nop.Core.Plugins
         /// <summary>
         /// Copy the plugin file to shadow copy directory
         /// </summary>
-        /// <param name="plug"></param>
-        /// <param name="shadowCopyPlugFolder"></param>
-        /// <returns></returns>
-        private static string ShadowCopyFile(string plug, string shadowCopyPlugFolder)
+        /// <param name="pluginFilePath">Plugin file path</param>
+        /// <param name="shadowCopyPlugFolder">Path to shadow copy folder</param>
+        /// <returns>File path to shadow copy of plugin file</returns>
+        private static string ShadowCopyFile(string pluginFilePath, string shadowCopyPlugFolder)
         {
             var shouldCopy = true;
-            var shadowCopiedPlug = _fileProvider.Combine(shadowCopyPlugFolder, _fileProvider.GetFileName(plug));
+            var shadowCopiedPlug = _fileProvider.Combine(shadowCopyPlugFolder, _fileProvider.GetFileName(pluginFilePath));
 
             //check if a shadow copied file already exists and if it does, check if it's updated, if not don't copy
             if (_fileProvider.FileExists(shadowCopiedPlug))
             {
                 //it's better to use LastWriteTimeUTC, but not all file systems have this property
                 //maybe it is better to compare file hash?
-                var areFilesIdentical = _fileProvider.GetCreationTime(shadowCopiedPlug).ToUniversalTime().Ticks >= _fileProvider.GetCreationTime(plug).ToUniversalTime().Ticks;
+                var areFilesIdentical = _fileProvider.GetCreationTime(shadowCopiedPlug).ToUniversalTime().Ticks >= _fileProvider.GetCreationTime(pluginFilePath).ToUniversalTime().Ticks;
                 if (areFilesIdentical)
                 {
                     Debug.WriteLine("Not copying; files appear identical: '{0}'", _fileProvider.GetFileName(shadowCopiedPlug));
@@ -310,7 +310,7 @@ namespace Nop.Core.Plugins
 
             try
             {
-                _fileProvider.FileCopy(plug, shadowCopiedPlug, true);
+                _fileProvider.FileCopy(pluginFilePath, shadowCopiedPlug, true);
             }
             catch (IOException)
             {
@@ -328,7 +328,7 @@ namespace Nop.Core.Plugins
                     throw new IOException(shadowCopiedPlug + " rename failed, cannot initialize plugin", exc);
                 }
                 //OK, we've made it this far, now retry the shadow copy
-                _fileProvider.FileCopy(plug, shadowCopiedPlug, true);
+                _fileProvider.FileCopy(pluginFilePath, shadowCopiedPlug, true);
             }
 
             return shadowCopiedPlug;
@@ -337,8 +337,8 @@ namespace Nop.Core.Plugins
         /// <summary>
         /// Determines if the folder is a bin plugin folder for a package
         /// </summary>
-        /// <param name="folder"></param>
-        /// <returns></returns>
+        /// <param name="folder">Folder</param>
+        /// <returns>True if the folder is a bin plugin folder for a package; otherwise false</returns>
         private static bool IsPackagePluginFolder(string folder)
         {
             if (string.IsNullOrEmpty(folder))
@@ -399,7 +399,7 @@ namespace Nop.Core.Plugins
                         //clear out shadow copied plugins
                         foreach (var f in binFiles)
                         {
-                            if(f.Equals("placeholder.txt", StringComparison.InvariantCultureIgnoreCase))
+                            if(_fileProvider.GetFileName(f).Equals("placeholder.txt", StringComparison.InvariantCultureIgnoreCase))
                                 continue;
 
                             Debug.WriteLine("Deleting " + f);

@@ -217,13 +217,6 @@ namespace Nop.Core.Infrastructure
         string[] GetFiles(string directoryPath, string searchPattern = "", bool topDirectoryOnly = true);
 
         /// <summary>
-        /// Gets the size, in bytes, of the file
-        /// </summary>
-        /// <param name="filePath">The path of the file</param>
-        /// <returns>The size of the file in bytes</returns>
-        long GetFileSize(string filePath);
-
-        /// <summary>
         /// Returns the date and time the specified file or directory was last accessed
         /// </summary>
         /// <param name="path">The file or directory for which to obtain access date and time information</param>

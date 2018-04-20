@@ -602,7 +602,7 @@ namespace Nop.Web.Areas.Admin.Factories
                     };
 
                     //fill in additional values (not existing in the entity)
-                    backupFileModel.Length = $"{_fileProvider.GetFileSize(file) / 1024f / 1024f:F2} Mb";
+                    backupFileModel.Length = $"{_fileProvider.FileLength(file) / 1024f / 1024f:F2} Mb";
                     backupFileModel.Link = $"{_webHelper.GetStoreLocation(false)}db_backups/{backupFileModel.Name}";
 
                     return backupFileModel;

@@ -19,11 +19,15 @@ namespace Nop.Core.Infrastructure
         /// Initializes a new instance of a NopFileProvider
         /// </summary>
         /// <param name="hostingEnvironment">Hosting environment</param>
-        public NopFileProvider(IHostingEnvironment hostingEnvironment) : base(hostingEnvironment.WebRootPath)
+        public NopFileProvider(IHostingEnvironment hostingEnvironment) 
+            : base(File.Exists(hostingEnvironment.WebRootPath) ? Path.GetDirectoryName(hostingEnvironment.WebRootPath) : hostingEnvironment.WebRootPath)
         {
-            BaseDirectory = hostingEnvironment.ContentRootPath ?? string.Empty;
-        }
+            var path = hostingEnvironment.ContentRootPath ?? string.Empty;
+            if (File.Exists(path))
+                path = Path.GetDirectoryName(path);
 
+            BaseDirectory = path;
+        }
 
         #region Utilities
 
@@ -367,16 +371,6 @@ namespace Nop.Core.Infrastructure
         }
 
         /// <summary>
-        /// Gets the size, in bytes, of the file
-        /// </summary>
-        /// <param name="filePath">The path of the file</param>
-        /// <returns>The size of the file in bytes</returns>
-        public virtual long GetFileSize(string filePath)
-        {
-            return new FileInfo(filePath).Length;
-        }
-
-        /// <summary>
         /// Returns the date and time the specified file or directory was last accessed
         /// </summary>
         /// <param name="path">The file or directory for which to obtain access date and time information</param>
@@ -488,6 +482,13 @@ namespace Nop.Core.Infrastructure
             File.WriteAllBytes(filePath, bytes);
         }
 
+        /// <summary>
+        /// Creates a new file, writes the specified string to the file using the specified encoding,
+        /// and then closes the file. If the target file already exists, it is overwritten.
+        /// </summary>
+        /// <param name="path">The file to write to</param>
+        /// <param name="contents">The string to write to the file</param>
+        /// <param name="encoding">The encoding to apply to the string</param>
         public virtual void WriteAllText(string path, string contents, Encoding encoding)
         {
             File.WriteAllText(path, contents, encoding);

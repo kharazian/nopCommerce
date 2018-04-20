@@ -28,7 +28,7 @@ namespace Nop.Data.Tests
         {
             var hostingEnvironment = MockRepository.GenerateMock<IHostingEnvironment>();
             hostingEnvironment.Expect(x => x.ContentRootPath).Return(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            hostingEnvironment.Expect(x => x.WebRootPath).Return(System.IO.Directory.GetCurrentDirectory());
+            hostingEnvironment.Expect(x => x.WebRootPath).Return(System.Reflection.Assembly.GetExecutingAssembly().Location);
             var fileProvider = new NopFileProvider(hostingEnvironment);
             
             var testDbName = "Data Source=" + fileProvider.GetAbsolutePath() + @"\\Nop.Data.Tests.Db.sdf;Persist Security Info=False";

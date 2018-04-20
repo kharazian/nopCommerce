@@ -83,26 +83,6 @@ namespace Nop.Web.Areas.Admin.Controllers
 
         #endregion
 
-        #region Utilities
-
-        protected virtual bool IsDebugAssembly(Assembly assembly)
-        {
-            var attribs = assembly.GetCustomAttributes(typeof(System.Diagnostics.DebuggableAttribute), false);
-
-            if (attribs.Length > 0)
-            {
-                var attr = attribs[0] as System.Diagnostics.DebuggableAttribute;
-                if (attr != null)
-                {
-                    return attr.IsJITOptimizerDisabled;
-                }
-            }
-
-            return false;
-        }
-
-        #endregion
-
         #region Methods
 
         public virtual IActionResult SystemInfo()

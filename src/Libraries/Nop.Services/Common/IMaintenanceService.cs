@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Microsoft.Extensions.FileProviders;
 using Nop.Core;
 
 namespace Nop.Services.Common
