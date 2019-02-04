@@ -15,6 +15,7 @@ using Nop.Services.Configuration;
 using Nop.Services.Events;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
+using Nop.Services.Messages;
 using Nop.Services.Payments;
 using Nop.Services.Plugins;
 using Nop.Services.Security;
@@ -35,13 +36,20 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly ExternalAuthenticationSettings _externalAuthenticationSettings;
         private readonly ICustomerActivityService _customerActivityService;
         private readonly IEventPublisher _eventPublisher;
+        private readonly IExternalAuthenticationService _externalAuthenticationService;
         private readonly ILocalizationService _localizationService;
+        private readonly ILogger _logger;
+        private readonly INotificationService _notificationService;
+        private readonly IPaymentService _paymentService;
         private readonly IPermissionService _permissionService;
-        private readonly IPluginFinder _pluginFinder;
         private readonly IPluginModelFactory _pluginModelFactory;
+        private readonly IPluginService _pluginService;
         private readonly ISettingService _settingService;
+        private readonly IShippingService _shippingService;
         private readonly IUploadService _uploadService;
         private readonly IWebHelper _webHelper;
+        private readonly IWidgetService _widgetService;
+        private readonly IWorkContext _workContext;
         private readonly PaymentSettings _paymentSettings;
         private readonly ShippingSettings _shippingSettings;
         private readonly TaxSettings _taxSettings;
@@ -54,13 +62,20 @@ namespace Nop.Web.Areas.Admin.Controllers
         public PluginController(ExternalAuthenticationSettings externalAuthenticationSettings,
             ICustomerActivityService customerActivityService,
             IEventPublisher eventPublisher,
+            IExternalAuthenticationService externalAuthenticationService,
             ILocalizationService localizationService,
+            ILogger logger,
+            INotificationService notificationService,
+            IPaymentService paymentService,
             IPermissionService permissionService,
-            IPluginFinder pluginFinder,
             IPluginModelFactory pluginModelFactory,
+            IPluginService pluginService,
             ISettingService settingService,
+            IShippingService shippingService,
             IUploadService uploadService,
             IWebHelper webHelper,
+            IWidgetService widgetService,
+            IWorkContext workContext,
             PaymentSettings paymentSettings,
             ShippingSettings shippingSettings,
             TaxSettings taxSettings,
@@ -69,13 +84,20 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._externalAuthenticationSettings = externalAuthenticationSettings;
             this._customerActivityService = customerActivityService;
             this._eventPublisher = eventPublisher;
+            this._externalAuthenticationService = externalAuthenticationService;
             this._localizationService = localizationService;
+            this._logger = logger;
+            this._notificationService = notificationService;
+            this._paymentService = paymentService;
             this._permissionService = permissionService;
-            this._pluginFinder = pluginFinder;
             this._pluginModelFactory = pluginModelFactory;
+            this._pluginService = pluginService;
             this._settingService = settingService;
+            this._shippingService = shippingService;
             this._uploadService = uploadService;
             this._webHelper = webHelper;
+            this._widgetService = widgetService;
+            this._workContext = workContext;
             this._paymentSettings = paymentSettings;
             this._shippingSettings = shippingSettings;
             this._taxSettings = taxSettings;
@@ -96,8 +118,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             if (!_permissionService.Authorize(StandardPermissionProvider.ManagePlugins))
                 return AccessDeniedView();
 
-            //prepare model
-            var model = _pluginModelFactory.PreparePluginSearchModel(new PluginSearchModel());
+            var model = _pluginModelFactory.PreparePluginsConfigurationModel(new PluginsConfigurationModel());
 
             return View(model);
         }
@@ -114,6 +135,31 @@ namespace Nop.Web.Areas.Admin.Controllers
             return Json(model);
         }
 
+        public virtual IActionResult SearchList()
+        {
+            if (!_permissionService.Authorize(StandardPermissionProvider.ManagePlugins))
+                return Json(new System.Collections.Generic.List<string>());
+
+            //prepare model
+            var model = _pluginModelFactory.PreparePluginListModel(
+                new PluginSearchModel { PageSize = int.MaxValue });
+
+            //negative rate is set to move plugins to the end of list
+            var filtredPlugins = model.Data
+                .Where(m => !string.IsNullOrEmpty(m.ConfigurationUrl))
+                .Select(m => new
+                {
+                    title = m.FriendlyName,
+                    link = m.ConfigurationUrl,
+                    parent = "Plugins",
+                    grandParent = "",
+                    rate = -50
+                })
+                .ToList();
+
+            return Json(filtredPlugins);
+        }
+
         [HttpPost]
         public virtual IActionResult UploadPluginsAndThemes(IFormFile archivefile)
         {
@@ -124,7 +170,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             {
                 if (archivefile == null || archivefile.Length == 0)
                 {
-                    ErrorNotification(_localizationService.GetResource("Admin.Common.UploadFile"));
+                    _notificationService.ErrorNotification(_localizationService.GetResource("Admin.Common.UploadFile"));
                     return RedirectToAction("List");
                 }
 
@@ -153,14 +199,14 @@ namespace Nop.Web.Areas.Admin.Controllers
                     _eventPublisher.Publish(new ThemesUploadedEvent(themeDescriptors));
 
                 var message = string.Format(_localizationService.GetResource("Admin.Configuration.Plugins.Uploaded"), pluginDescriptors.Count, themeDescriptors.Count);
-                SuccessNotification(message);
+                _notificationService.SuccessNotification(message);
 
                 //restart application
                 _webHelper.RestartAppDomain();
             }
             catch (Exception exc)
             {
-                ErrorNotification(exc);
+                _notificationService.ErrorNotification(exc);
             }
 
             return RedirectToAction("List");
@@ -181,7 +227,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                     if (formValue.StartsWith("install-plugin-link-", StringComparison.InvariantCultureIgnoreCase))
                         systemName = formValue.Substring("install-plugin-link-".Length);
 
-                var pluginDescriptor = _pluginFinder.GetPluginDescriptorBySystemName(systemName, LoadPluginsMode.All);
+                var pluginDescriptor = _pluginService.GetPluginDescriptorBySystemName<IPlugin>(systemName, LoadPluginsMode.All);
                 if (pluginDescriptor == null)
                     //No plugin found with the specified id
                     return RedirectToAction("List");
@@ -190,21 +236,13 @@ namespace Nop.Web.Areas.Admin.Controllers
                 if (pluginDescriptor.Installed)
                     return RedirectToAction("List");
 
-                //install plugin
-                pluginDescriptor.Instance().Install();
-
-                //activity log
-                _customerActivityService.InsertActivity("InstallNewPlugin",
-                    string.Format(_localizationService.GetResource("ActivityLog.InstallNewPlugin"), pluginDescriptor.FriendlyName));
-
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.Installed"));
-
-                //restart application
-                _webHelper.RestartAppDomain();
+                _pluginService.PreparePluginToInstall(pluginDescriptor.SystemName, _workContext.CurrentCustomer);
+                pluginDescriptor.ShowInPluginsList = false;
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.ChangesApplyAfterReboot"));
             }
             catch (Exception exc)
             {
-                ErrorNotification(exc);
+                _notificationService.ErrorNotification(exc);
             }
 
             return RedirectToAction("List");
@@ -225,7 +263,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                     if (formValue.StartsWith("uninstall-plugin-link-", StringComparison.InvariantCultureIgnoreCase))
                         systemName = formValue.Substring("uninstall-plugin-link-".Length);
 
-                var pluginDescriptor = _pluginFinder.GetPluginDescriptorBySystemName(systemName, LoadPluginsMode.All);
+                var pluginDescriptor = _pluginService.GetPluginDescriptorBySystemName<IPlugin>(systemName, LoadPluginsMode.All);
                 if (pluginDescriptor == null)
                     //No plugin found with the specified id
                     return RedirectToAction("List");
@@ -234,21 +272,13 @@ namespace Nop.Web.Areas.Admin.Controllers
                 if (!pluginDescriptor.Installed)
                     return RedirectToAction("List");
 
-                //uninstall plugin
-                pluginDescriptor.Instance().Uninstall();
-
-                //activity log
-                _customerActivityService.InsertActivity("UninstallPlugin",
-                    string.Format(_localizationService.GetResource("ActivityLog.UninstallPlugin"), pluginDescriptor.FriendlyName));
-
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.Uninstalled"));
-
-                //restart application
-                _webHelper.RestartAppDomain();
+                _pluginService.PreparePluginToUninstall(pluginDescriptor.SystemName);
+                pluginDescriptor.ShowInPluginsList = false;
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.ChangesApplyAfterReboot"));
             }
             catch (Exception exc)
             {
-                ErrorNotification(exc);
+                _notificationService.ErrorNotification(exc);
             }
 
             return RedirectToAction("List");
@@ -269,22 +299,19 @@ namespace Nop.Web.Areas.Admin.Controllers
                     if (formValue.StartsWith("delete-plugin-link-", StringComparison.InvariantCultureIgnoreCase))
                         systemName = formValue.Substring("delete-plugin-link-".Length);
 
-                var pluginDescriptor = _pluginFinder.GetPluginDescriptorBySystemName(systemName, LoadPluginsMode.All);
-                if (!PluginManager.DeletePlugin(pluginDescriptor))
+                var pluginDescriptor = _pluginService.GetPluginDescriptorBySystemName<IPlugin>(systemName, LoadPluginsMode.All);
+
+                //check whether plugin is not installed
+                if (pluginDescriptor.Installed)
                     return RedirectToAction("List");
 
-                //activity log
-                _customerActivityService.InsertActivity("DeletePlugin",
-                    string.Format(_localizationService.GetResource("ActivityLog.DeletePlugin"), pluginDescriptor.FriendlyName));
-
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.Deleted"));
-
-                //restart application
-                _webHelper.RestartAppDomain();
+                _pluginService.PreparePluginToDelete(pluginDescriptor.SystemName);
+                pluginDescriptor.ShowInPluginsList = false;
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Plugins.ChangesApplyAfterReboot"));
             }
             catch (Exception exc)
             {
-                ErrorNotification(exc);
+                _notificationService.ErrorNotification(exc);
             }
 
             return RedirectToAction("List");
@@ -297,8 +324,30 @@ namespace Nop.Web.Areas.Admin.Controllers
             if (!_permissionService.Authorize(StandardPermissionProvider.ManagePlugins))
                 return AccessDeniedView();
 
+            _pluginService.UninstallPlugins();
+            _pluginService.DeletePlugins();
+
             //restart application
             _webHelper.RestartAppDomain();
+
+            return RedirectToAction("List");
+        }
+
+        [HttpPost, ActionName("List")]
+        [FormValueRequired("plugin-apply-changes")]
+        public virtual IActionResult ApplyChanges()
+        {
+            return ReloadList();
+        }
+
+        [HttpPost, ActionName("List")]
+        [FormValueRequired("plugin-discard-changes")]
+        public virtual IActionResult DiscardChanges()
+        {
+            if (!_permissionService.Authorize(StandardPermissionProvider.ManagePlugins))
+                return AccessDeniedView();
+
+            _pluginService.ResetChanges();
 
             return RedirectToAction("List");
         }
@@ -309,7 +358,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 return AccessDeniedView();
 
             //try to get a plugin with the specified system name
-            var pluginDescriptor = _pluginFinder.GetPluginDescriptorBySystemName(systemName, LoadPluginsMode.All);
+            var pluginDescriptor = _pluginService.GetPluginDescriptorBySystemName<IPlugin>(systemName, LoadPluginsMode.All);
             if (pluginDescriptor == null)
                 return RedirectToAction("List");
 
@@ -326,12 +375,14 @@ namespace Nop.Web.Areas.Admin.Controllers
                 return AccessDeniedView();
 
             //try to get a plugin with the specified system name
-            var pluginDescriptor = _pluginFinder.GetPluginDescriptorBySystemName(model.SystemName, LoadPluginsMode.All);
+            var pluginDescriptor = _pluginService.GetPluginDescriptorBySystemName<IPlugin>(model.SystemName, LoadPluginsMode.All);
             if (pluginDescriptor == null)
                 return RedirectToAction("List");
 
             if (ModelState.IsValid)
             {
+                ViewBag.RefreshPage = true;
+
                 //we allow editing of 'friendly name', 'display order', store mappings
                 pluginDescriptor.FriendlyName = model.FriendlyName;
                 pluginDescriptor.DisplayOrder = model.DisplayOrder;
@@ -343,133 +394,131 @@ namespace Nop.Web.Areas.Admin.Controllers
                     pluginDescriptor.LimitedToCustomerRoles = model.SelectedCustomerRoleIds;
 
                 //update the description file
-                PluginManager.SavePluginDescriptor(pluginDescriptor);
+                pluginDescriptor.Save();
 
-                //reset plugin cache
-                _pluginFinder.ReloadPlugins(pluginDescriptor);
+                //raise event
+                _eventPublisher.Publish(new PluginUpdatedEvent(pluginDescriptor));
 
                 //locales
+                var pluginInstance = pluginDescriptor.Instance<IPlugin>();
                 foreach (var localized in model.Locales)
                 {
-                    pluginDescriptor.Instance().SaveLocalizedFriendlyName(_localizationService, localized.LanguageId, localized.FriendlyName);
+                    _localizationService.SaveLocalizedFriendlyName(pluginInstance, localized.LanguageId, localized.FriendlyName);
                 }
 
                 //enabled/disabled
-                if (pluginDescriptor.Installed)
+                if (!pluginDescriptor.Installed)
+                    return View(model);
+
+                switch (pluginInstance)
                 {
-                    var pluginInstance = pluginDescriptor.Instance();
-                    switch (pluginInstance)
-                    {
-                        case IPaymentMethod paymentMethod:
-                            if (paymentMethod.IsPaymentMethodActive(_paymentSettings) && !model.IsEnabled)
-                            {
-                                //mark as disabled
-                                _paymentSettings.ActivePaymentMethodSystemNames.Remove(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_paymentSettings);
-                                break;
-                            }
-
-                            if (!paymentMethod.IsPaymentMethodActive(_paymentSettings) && model.IsEnabled)
-                            {
-                                //mark as enabled
-                                _paymentSettings.ActivePaymentMethodSystemNames.Add(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_paymentSettings);
-                            }
-
+                    case IPaymentMethod paymentMethod:
+                        if (_paymentService.IsPaymentMethodActive(paymentMethod) && !model.IsEnabled)
+                        {
+                            //mark as disabled
+                            _paymentSettings.ActivePaymentMethodSystemNames.Remove(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_paymentSettings);
                             break;
-                        case IShippingRateComputationMethod shippingRateComputationMethod:
-                            if (shippingRateComputationMethod.IsShippingRateComputationMethodActive(_shippingSettings) && !model.IsEnabled)
-                            {
-                                //mark as disabled
-                                _shippingSettings.ActiveShippingRateComputationMethodSystemNames.Remove(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_shippingSettings);
-                                break;
-                            }
+                        }
 
-                            if (!shippingRateComputationMethod.IsShippingRateComputationMethodActive(_shippingSettings) && model.IsEnabled)
-                            {
-                                //mark as enabled
-                                _shippingSettings.ActiveShippingRateComputationMethodSystemNames.Add(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_shippingSettings);
-                            }
-
-                            break;
-                        case IPickupPointProvider pickupPointProvider:
-                            if (pickupPointProvider.IsPickupPointProviderActive(_shippingSettings) && !model.IsEnabled)
-                            {
-                                //mark as disabled
-                                _shippingSettings.ActivePickupPointProviderSystemNames.Remove(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_shippingSettings);
-                                break;
-                            }
-
-                            if (!pickupPointProvider.IsPickupPointProviderActive(_shippingSettings) && model.IsEnabled)
-                            {
-                                //mark as enabled
-                                _shippingSettings.ActivePickupPointProviderSystemNames.Add(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_shippingSettings);
-                            }
-
-                            break;
-                        case ITaxProvider _:
-                            if (!model.IsEnabled)
-                            {
-                                //mark as disabled
-                                _taxSettings.ActiveTaxProviderSystemName = string.Empty;
-                                _settingService.SaveSetting(_taxSettings);
-                                break;
-                            }
-
+                        if (!_paymentService.IsPaymentMethodActive(paymentMethod) && model.IsEnabled)
+                        {
                             //mark as enabled
-                            _taxSettings.ActiveTaxProviderSystemName = model.SystemName;
+                            _paymentSettings.ActivePaymentMethodSystemNames.Add(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_paymentSettings);
+                        }
+
+                        break;
+                    case IShippingRateComputationMethod shippingRateComputationMethod:
+                        if (_shippingService.IsShippingRateComputationMethodActive(shippingRateComputationMethod) && !model.IsEnabled)
+                        {
+                            //mark as disabled
+                            _shippingSettings.ActiveShippingRateComputationMethodSystemNames.Remove(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_shippingSettings);
+                            break;
+                        }
+
+                        if (!_shippingService.IsShippingRateComputationMethodActive(shippingRateComputationMethod) && model.IsEnabled)
+                        {
+                            //mark as enabled
+                            _shippingSettings.ActiveShippingRateComputationMethodSystemNames.Add(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_shippingSettings);
+                        }
+
+                        break;
+                    case IPickupPointProvider pickupPointProvider:
+                        if (_shippingService.IsPickupPointProviderActive(pickupPointProvider) && !model.IsEnabled)
+                        {
+                            //mark as disabled
+                            _shippingSettings.ActivePickupPointProviderSystemNames.Remove(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_shippingSettings);
+                            break;
+                        }
+
+                        if (!_shippingService.IsPickupPointProviderActive(pickupPointProvider) && model.IsEnabled)
+                        {
+                            //mark as enabled
+                            _shippingSettings.ActivePickupPointProviderSystemNames.Add(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_shippingSettings);
+                        }
+
+                        break;
+                    case ITaxProvider _:
+                        if (!model.IsEnabled)
+                        {
+                            //mark as disabled
+                            _taxSettings.ActiveTaxProviderSystemName = string.Empty;
                             _settingService.SaveSetting(_taxSettings);
                             break;
-                        case IExternalAuthenticationMethod externalAuthenticationMethod:
-                            if (externalAuthenticationMethod.IsMethodActive(_externalAuthenticationSettings) && !model.IsEnabled)
-                            {
-                                //mark as disabled
-                                _externalAuthenticationSettings.ActiveAuthenticationMethodSystemNames.Remove(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_externalAuthenticationSettings);
-                                break;
-                            }
+                        }
 
-                            if (!externalAuthenticationMethod.IsMethodActive(_externalAuthenticationSettings) && model.IsEnabled)
-                            {
-                                //mark as enabled
-                                _externalAuthenticationSettings.ActiveAuthenticationMethodSystemNames.Add(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_externalAuthenticationSettings);
-                            }
-
+                        //mark as enabled
+                        _taxSettings.ActiveTaxProviderSystemName = model.SystemName;
+                        _settingService.SaveSetting(_taxSettings);
+                        break;
+                    case IExternalAuthenticationMethod externalAuthenticationMethod:
+                        if (_externalAuthenticationService.IsExternalAuthenticationMethodActive(externalAuthenticationMethod) && !model.IsEnabled)
+                        {
+                            //mark as disabled
+                            _externalAuthenticationSettings.ActiveAuthenticationMethodSystemNames.Remove(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_externalAuthenticationSettings);
                             break;
-                        case IWidgetPlugin widgetPlugin:
-                            if (widgetPlugin.IsWidgetActive(_widgetSettings) && !model.IsEnabled)
-                            {
-                                //mark as disabled
-                                _widgetSettings.ActiveWidgetSystemNames.Remove(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_widgetSettings);
-                                break;
-                            }
+                        }
 
-                            if (!widgetPlugin.IsWidgetActive(_widgetSettings) && model.IsEnabled)
-                            {
-                                //mark as enabled
-                                _widgetSettings.ActiveWidgetSystemNames.Add(pluginDescriptor.SystemName);
-                                _settingService.SaveSetting(_widgetSettings);
-                            }
+                        if (!_externalAuthenticationService.IsExternalAuthenticationMethodActive(externalAuthenticationMethod) && model.IsEnabled)
+                        {
+                            //mark as enabled
+                            _externalAuthenticationSettings.ActiveAuthenticationMethodSystemNames.Add(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_externalAuthenticationSettings);
+                        }
 
+                        break;
+                    case IWidgetPlugin widgetPlugin:
+                        if (_widgetService.IsWidgetActive(widgetPlugin) && !model.IsEnabled)
+                        {
+                            //mark as disabled
+                            _widgetSettings.ActiveWidgetSystemNames.Remove(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_widgetSettings);
                             break;
-                    }
+                        }
 
-                    //activity log
-                    _customerActivityService.InsertActivity("EditPlugin",
-                        string.Format(_localizationService.GetResource("ActivityLog.EditPlugin"), pluginDescriptor.FriendlyName));
+                        if (!_widgetService.IsWidgetActive(widgetPlugin) && model.IsEnabled)
+                        {
+                            //mark as enabled
+                            _widgetSettings.ActiveWidgetSystemNames.Add(pluginDescriptor.SystemName);
+                            _settingService.SaveSetting(_widgetSettings);
+                        }
+
+                        break;
                 }
 
-                ViewBag.RefreshPage = true;
+                //activity log
+                _customerActivityService.InsertActivity("EditPlugin",
+                    string.Format(_localizationService.GetResource("ActivityLog.EditPlugin"), pluginDescriptor.FriendlyName));
 
                 return View(model);
             }
-            
+
             //prepare model
             model = _pluginModelFactory.PreparePluginModel(model, pluginDescriptor, true);
 

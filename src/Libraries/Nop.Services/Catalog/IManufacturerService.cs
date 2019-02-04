@@ -103,8 +103,17 @@ namespace Nop.Services.Catalog
         /// <summary>
         /// Returns a list of names of not existing manufacturers
         /// </summary>
-        /// <param name="manufacturerNames">The names of the manufacturers to check</param>
-        /// <returns>List of names not existing manufacturers</returns>
-        string[] GetNotExistingManufacturers(string[] manufacturerNames);
+        /// <param name="manufacturerIdsNames">The names and/or IDs of the manufacturers to check</param>
+        /// <returns>List of names and/or IDs not existing manufacturers</returns>
+        string[] GetNotExistingManufacturers(string[] manufacturerIdsNames);
+
+        /// <summary>
+        /// Returns a ProductManufacturer that has the specified values
+        /// </summary>
+        /// <param name="source">Source</param>
+        /// <param name="productId">Product identifier</param>
+        /// <param name="manufacturerId">Manufacturer identifier</param>
+        /// <returns>A ProductManufacturer that has the specified values; otherwise null</returns>
+        ProductManufacturer FindProductManufacturer(IList<ProductManufacturer> source, int productId, int manufacturerId);
     }
 }

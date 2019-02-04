@@ -12,16 +12,6 @@ namespace Nop.Core.Configuration
         public bool DisplayFullErrorStack { get; set; }
 
         /// <summary>
-        /// Gets or sets a value of "Cache-Control" header value for static content
-        /// </summary>
-        public string StaticFilesCacheControl { get; set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether we compress response
-        /// </summary>
-        public bool UseResponseCompression { get; set; }
-
-        /// <summary>
         /// Gets or sets connection string for Azure BLOB storage
         /// </summary>
         public string AzureBlobStorageConnectionString { get; set; }
@@ -33,6 +23,12 @@ namespace Nop.Core.Configuration
         /// Gets or sets end point for Azure BLOB storage
         /// </summary>
         public string AzureBlobStorageEndPoint { get; set; }
+        /// <summary>
+        /// Gets or sets whether or the Container Name is appended to the AzureBlobStorageEndPoint
+        /// when constructing the url
+        /// </summary>
+        public bool AzureBlobStorageAppendContainerName { get; set; }
+
 
         /// <summary>
         /// Gets or sets a value indicating whether we should use Redis server for caching (instead of default in-memory caching)
@@ -55,11 +51,6 @@ namespace Nop.Core.Configuration
         /// Gets or sets path to database with crawler only user agent strings
         /// </summary>
         public string CrawlerOnlyUserAgentStringsPath { get; set; }
-
-        /// <summary>
-        /// Gets or sets a value indicating whether we should support previous nopCommerce versions (it can slightly improve performance)
-        /// </summary>
-        public bool SupportPreviousNopcommerceVersions { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether a store owner can install sample data during installation
@@ -99,5 +90,16 @@ namespace Nop.Core.Configuration
         /// Gets or sets a value indicating whether to copy plugins library to the /Plugins/bin directory on application startup
         /// </summary>
         public bool UsePluginsShadowCopy { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to use backwards compatibility with SQL Server 2008 and SQL Server 2008R2
+        /// </summary>
+        public bool UseRowNumberForPaging { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to store TempData in the session state.
+        /// By default the cookie-based TempData provider is used to store TempData in cookies.
+        /// </summary>
+        public bool UseSessionStateTempDataProvider { get; set; }
     }
 }

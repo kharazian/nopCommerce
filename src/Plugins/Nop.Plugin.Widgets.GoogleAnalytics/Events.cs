@@ -1,9 +1,10 @@
 using System;
 using System.Linq;
 using Nop.Core;
-using Nop.Core.Domain.Cms;
-using Nop.Core.Domain.Orders;
 using Nop.Core.Domain.Logging;
+using Nop.Core.Domain.Orders;
+using Nop.Core.Domain.Payments;
+using Nop.Core.Events;
 using Nop.Plugin.Widgets.GoogleAnalytics.Api;
 using Nop.Services.Catalog;
 using Nop.Services.Cms;
@@ -14,37 +15,34 @@ using Nop.Services.Stores;
 
 namespace Nop.Plugin.Widgets.GoogleAnalytics
 {
-    public class EventConsumer : IConsumer<OrderCancelledEvent>, IConsumer<OrderPaidEvent>
+    public class EventConsumer : IConsumer<OrderCancelledEvent>, IConsumer<OrderPaidEvent>, IConsumer<EntityDeletedEvent<Order>>
     {
         private readonly ICategoryService _categoryService;
         private readonly ILogger _logger;
-        private readonly IProductAttributeParser _productAttributeParser;
+        private readonly IProductService _productService;
         private readonly ISettingService _settingService;
         private readonly IStoreContext _storeContext;
         private readonly IStoreService _storeService;
         private readonly IWebHelper _webHelper;
         private readonly IWidgetService _widgetService;
-        private readonly WidgetSettings _widgetSettings;
 
         public EventConsumer(ICategoryService categoryService,
             ILogger logger,
-            IProductAttributeParser productAttributeParser,
+            IProductService productService,
             ISettingService settingService,
             IStoreContext storeContext,
             IStoreService storeService,
             IWebHelper webHelper,
-            IWidgetService widgetService,
-            WidgetSettings widgetSetting)
+            IWidgetService widgetService)
         {
             this._logger = logger;
             this._categoryService = categoryService;
-            this._productAttributeParser = productAttributeParser;
+            this._productService = productService;
             this._settingService = settingService;
             this._storeContext = storeContext;
             this._storeService = storeService;
             this._webHelper = webHelper;
             this._widgetService = widgetService;
-            this._widgetSettings = widgetSetting;
         }
 
         private string FixIllegalJavaScriptChars(string text)
@@ -57,23 +55,20 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics
             return text;
         }
 
+        private bool IsPluginEnabled()
+        {
+            return _widgetService.LoadWidgetBySystemName("Widgets.GoogleAnalytics") is GoogleAnalyticsPlugin plugin
+                && _widgetService.IsWidgetActive(plugin);
+        }
+
         private void ProcessOrderEvent(Order order, bool add)
         {
-            //ensure the plugin is installed and active
-            var plugin = _widgetService.LoadWidgetBySystemName("Widgets.GoogleAnalytics") as GoogleAnalyticPlugin;
-            if (plugin == null ||
-                !plugin.IsWidgetActive(_widgetSettings) || !plugin.PluginDescriptor.Installed)
-                return;
-
             try
             {
-                var store = _storeService.GetStoreById(order.StoreId) ?? _storeContext.CurrentStore;
                 //settings per store
+                var store = _storeService.GetStoreById(order.StoreId) ?? _storeContext.CurrentStore;
                 var googleAnalyticsSettings = _settingService.LoadSetting<GoogleAnalyticsSettings>(store.Id);
 
-                if (!googleAnalyticsSettings.EnableEcommerce)
-                    return;
-                
                 var request = new GoogleRequest
                 {
                     AccountCode = googleAnalyticsSettings.GoogleId,
@@ -82,7 +77,7 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics
                     PageTitle = add ? "AddTransaction" : "CancelTransaction"
                 };
 
-                var orderId = order.Id.ToString(); //pass custom order number? order.CustomOrderNumber
+                var orderId = order.CustomOrderNumber;
                 var orderShipping = googleAnalyticsSettings.IncludingTax ? order.OrderShippingInclTax : order.OrderShippingExclTax;
                 var orderTax = order.OrderTax;
                 var orderTotal = order.OrderTotal;
@@ -92,7 +87,7 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics
                     orderTax = -orderTax;
                     orderTotal = -orderTotal;
                 }
-                var trans = new Transaction(orderId,
+                var trans = new Transaction(FixIllegalJavaScriptChars(orderId),
                     order.BillingAddress == null ? "" : FixIllegalJavaScriptChars(order.BillingAddress.City),
                     order.BillingAddress == null || order.BillingAddress.Country == null ? "" : FixIllegalJavaScriptChars(order.BillingAddress.Country.Name),
                     order.BillingAddress == null || order.BillingAddress.StateProvince == null ? "" : FixIllegalJavaScriptChars(order.BillingAddress.StateProvince.Name),
@@ -104,18 +99,18 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics
                 foreach (var item in order.OrderItems)
                 {
                     //get category
-                    var category = "";
-                    var defaultProductCategory = _categoryService.GetProductCategoriesByProductId(item.ProductId).FirstOrDefault();
-                    if (defaultProductCategory != null)
-                        category = defaultProductCategory.Category.Name;
+                    var category = _categoryService.GetProductCategoriesByProductId(item.ProductId).FirstOrDefault()?.Category?.Name;
 
                     var unitPrice = googleAnalyticsSettings.IncludingTax ? item.UnitPriceInclTax : item.UnitPriceExclTax;
                     var qty = item.Quantity;
                     if (!add)
                         qty = -qty;
 
-                    var product = new TransactionItem(FixIllegalJavaScriptChars(orderId), 
-                      FixIllegalJavaScriptChars(item.Product.FormatSku(item.AttributesXml, _productAttributeParser)),
+                    var sku = _productService.FormatSku(item.Product, item.AttributesXml);
+                    if (String.IsNullOrEmpty(sku))
+                        sku = item.Product.Id.ToString();
+                    var product = new TransactionItem(FixIllegalJavaScriptChars(orderId),
+                      FixIllegalJavaScriptChars(sku),
                       FixIllegalJavaScriptChars(item.Product.Name),
                       unitPrice,
                       qty,
@@ -136,9 +131,65 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics
         /// Handles the event
         /// </summary>
         /// <param name="eventMessage">The event message</param>
+        public void HandleEvent(EntityDeletedEvent<Order> eventMessage)
+        {
+            //ensure the plugin is installed and active
+            if (!IsPluginEnabled())
+                return;
+
+            var order = eventMessage.Entity;
+
+            //settings per store
+            var store = _storeService.GetStoreById(order.StoreId) ?? _storeContext.CurrentStore;
+            var googleAnalyticsSettings = _settingService.LoadSetting<GoogleAnalyticsSettings>(store.Id);
+
+            //ecommerce is disabled
+            if (!googleAnalyticsSettings.EnableEcommerce)
+                return;
+
+            bool sendRequest;
+            if (googleAnalyticsSettings.UseJsToSendEcommerceInfo)
+            {
+                //if we use JS to notify GA about new orders (even when they are placed), then we should always notify GA about deleted orders
+                //but ignore already cancelled orders (do not duplicate request to GA)
+                sendRequest = order.OrderStatus != OrderStatus.Cancelled;
+            }
+            else
+            {
+                //if we use HTTP requests to notify GA about new orders (only when they are paid), then we should notify GA about deleted AND paid orders
+                sendRequest = order.PaymentStatus == PaymentStatus.Paid;
+            }
+
+            if (sendRequest)
+                ProcessOrderEvent(order, false);
+        }
+
+        /// <summary>
+        /// Handles the event
+        /// </summary>
+        /// <param name="eventMessage">The event message</param>
         public void HandleEvent(OrderCancelledEvent eventMessage)
         {
-            ProcessOrderEvent(eventMessage.Order, false);
+            //ensure the plugin is installed and active
+            if (!IsPluginEnabled())
+                return;
+
+            var order = eventMessage.Order;
+
+            //settings per store
+            var store = _storeService.GetStoreById(order.StoreId) ?? _storeContext.CurrentStore;
+            var googleAnalyticsSettings = _settingService.LoadSetting<GoogleAnalyticsSettings>(store.Id);
+
+            //ecommerce is disabled
+            if (!googleAnalyticsSettings.EnableEcommerce)
+                return;
+
+            //if we use JS to notify GA about new orders (even when they are placed), then we should always notify GA about deleted orders
+            //if we use HTTP requests to notify GA about new orders (only when they are paid), then we should notify GA about deleted AND paid orders
+            bool sendRequest = googleAnalyticsSettings.UseJsToSendEcommerceInfo || order.PaymentStatus == PaymentStatus.Paid;
+
+            if (sendRequest)
+                ProcessOrderEvent(order, false);
         }
 
         /// <summary>
@@ -147,7 +198,25 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics
         /// <param name="eventMessage">The event message</param>
         public void HandleEvent(OrderPaidEvent eventMessage)
         {
-            ProcessOrderEvent(eventMessage.Order, true);
+            //ensure the plugin is installed and active
+            if (!IsPluginEnabled())
+                return;
+
+            var order = eventMessage.Order;
+
+            //settings per store
+            var store = _storeService.GetStoreById(order.StoreId) ?? _storeContext.CurrentStore;
+            var googleAnalyticsSettings = _settingService.LoadSetting<GoogleAnalyticsSettings>(store.Id);
+
+            //ecommerce is disabled
+            if (!googleAnalyticsSettings.EnableEcommerce)
+                return;
+
+            //we use HTTP requests to notify GA about new orders (only when they are paid)
+            bool sendRequest = !googleAnalyticsSettings.UseJsToSendEcommerceInfo;
+
+            if (sendRequest)
+                ProcessOrderEvent(order, true);
         }
     }
 }

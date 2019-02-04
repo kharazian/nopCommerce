@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Nop.Core;
 using Nop.Core.Domain.Customers;
 using Nop.Core.Domain.Orders;
 using Nop.Services.Helpers;
 using Nop.Services.Localization;
 using Nop.Services.Media;
 using Nop.Services.Orders;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Orders;
 using Nop.Web.Framework.Extensions;
 using Nop.Web.Framework.Factories;
@@ -29,7 +28,6 @@ namespace Nop.Web.Areas.Admin.Factories
         private readonly ILocalizedModelFactory _localizedModelFactory;
         private readonly IOrderService _orderService;
         private readonly IReturnRequestService _returnRequestService;
-        private readonly IWorkContext _workContext;
 
         #endregion
 
@@ -41,8 +39,7 @@ namespace Nop.Web.Areas.Admin.Factories
             ILocalizationService localizationService,
             ILocalizedModelFactory localizedModelFactory,
             IOrderService orderService,
-            IReturnRequestService returnRequestService,
-            IWorkContext workContext)
+            IReturnRequestService returnRequestService)
         {
             this._baseAdminModelFactory = baseAdminModelFactory;
             this._dateTimeHelper = dateTimeHelper;
@@ -51,7 +48,6 @@ namespace Nop.Web.Areas.Admin.Factories
             this._localizedModelFactory = localizedModelFactory;
             this._orderService = orderService;
             this._returnRequestService = returnRequestService;
-            this._workContext = workContext;
         }
 
         #endregion
@@ -116,22 +112,15 @@ namespace Nop.Web.Areas.Admin.Factories
                 Data = returnRequests.Select(returnRequest =>
                 {
                     //fill in model values from the entity
-                    var returnRequestModel = new ReturnRequestModel
-                    {
-                        Id = returnRequest.Id,
-                        CustomNumber = returnRequest.CustomNumber,
-                        CustomerId = returnRequest.CustomerId,
-                        Quantity = returnRequest.Quantity
-                    };
-
+                    var returnRequestModel = returnRequest.ToModel<ReturnRequestModel>();
+                    
                     //convert dates to the user time
                     returnRequestModel.CreatedOn = _dateTimeHelper.ConvertToUserTime(returnRequest.CreatedOnUtc, DateTimeKind.Utc);
 
                     //fill in additional values (not existing in the entity)
                     returnRequestModel.CustomerInfo = returnRequest.Customer.IsRegistered()
                         ? returnRequest.Customer.Email : _localizationService.GetResource("Admin.Customers.Guest");
-                    returnRequestModel.ReturnRequestStatusStr = returnRequest
-                        .ReturnRequestStatus.GetLocalizedEnum(_localizationService, _workContext);
+                    returnRequestModel.ReturnRequestStatusStr = _localizationService.GetLocalizedEnum(returnRequest.ReturnRequestStatus);
                     var orderItem = _orderService.GetOrderItemById(returnRequest.OrderItemId);
                     if (orderItem == null)
                         return returnRequestModel;
@@ -232,7 +221,7 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new ReturnRequestReasonListModel
             {
                 //fill in model values from the entity
-                Data = reasons.PaginationByRequestModel(searchModel).Select(reason => reason.ToModel()),
+                Data = reasons.PaginationByRequestModel(searchModel).Select(reason => reason.ToModel<ReturnRequestReasonModel>()),
                 Total = reasons.Count
             };
 
@@ -254,15 +243,15 @@ namespace Nop.Web.Areas.Admin.Factories
             if (returnRequestReason != null)
             {
                 //fill in model values from the entity
-                model = model ?? returnRequestReason.ToModel();
-                
+                model = model ?? returnRequestReason.ToModel<ReturnRequestReasonModel>();
+
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = returnRequestReason.GetLocalized(entity => entity.Name, languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(returnRequestReason, entity => entity.Name, languageId, false, false);
                 };
             }
-            
+
             //prepare localized models
             if (!excludeProperties)
                 model.Locales = _localizedModelFactory.PrepareLocalizedModels(localizedModelConfiguration);
@@ -303,7 +292,7 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new ReturnRequestActionListModel
             {
                 //fill in model values from the entity
-                Data = actions.PaginationByRequestModel(searchModel).Select(action => action.ToModel()),
+                Data = actions.PaginationByRequestModel(searchModel).Select(action => action.ToModel<ReturnRequestActionModel>()),
                 Total = actions.Count
             };
 
@@ -325,12 +314,12 @@ namespace Nop.Web.Areas.Admin.Factories
             if (returnRequestAction != null)
             {
                 //fill in model values from the entity
-                model = model ?? returnRequestAction.ToModel();
+                model = model ?? returnRequestAction.ToModel<ReturnRequestActionModel>();
 
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = returnRequestAction.GetLocalized(entity => entity.Name, languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(returnRequestAction, entity => entity.Name, languageId, false, false);
                 };
             }
 

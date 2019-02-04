@@ -10,6 +10,7 @@ using Nop.Plugin.Payments.Square.Services;
 using Nop.Services;
 using Nop.Services.Configuration;
 using Nop.Services.Localization;
+using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Web.Framework;
 using Nop.Web.Framework.Controllers;
@@ -22,6 +23,7 @@ namespace Nop.Plugin.Payments.Square.Controllers
         #region Fields
 
         private readonly ILocalizationService _localizationService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly ISettingService _settingService;
         private readonly SquarePaymentManager _squarePaymentManager;
@@ -32,12 +34,14 @@ namespace Nop.Plugin.Payments.Square.Controllers
         #region Ctor
 
         public PaymentSquareController(ILocalizationService localizationService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             ISettingService settingService,
             SquarePaymentManager squarePaymentManager,
             SquarePaymentSettings squarePaymentSettings)
         {
             this._localizationService = localizationService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._settingService = settingService;
             this._squarePaymentManager = squarePaymentManager;
@@ -60,8 +64,10 @@ namespace Nop.Plugin.Payments.Square.Controllers
             var model = new ConfigurationModel
             {
                 ApplicationId = _squarePaymentSettings.ApplicationId,
+                SandboxApplicationId = _squarePaymentSettings.ApplicationId,
                 ApplicationSecret = _squarePaymentSettings.ApplicationSecret,
                 AccessToken = _squarePaymentSettings.AccessToken,
+                SandboxAccessToken = _squarePaymentSettings.AccessToken,
                 UseSandbox = _squarePaymentSettings.UseSandbox,
                 TransactionModeId = (int)_squarePaymentSettings.TransactionMode,
                 TransactionModes = _squarePaymentSettings.TransactionMode.ToSelectList(),
@@ -80,6 +86,11 @@ namespace Nop.Plugin.Payments.Square.Controllers
                         name = $"{name} ({location.Name})";
                     return new SelectListItem { Text = name, Value = location.Id };
                 }).ToList();
+                if (model.Locations.Any())
+                {
+                    var selectLocationText = _localizationService.GetResource("Plugins.Payments.Square.Fields.Location.Select");
+                    model.Locations.Insert(0, new SelectListItem { Text = selectLocationText, Value = "0" });
+                }
             }
 
             //add the special item for 'there are no location' with value 0
@@ -88,6 +99,10 @@ namespace Nop.Plugin.Payments.Square.Controllers
                 var noLocationText = _localizationService.GetResource("Plugins.Payments.Square.Fields.Location.NotExist");
                 model.Locations.Add(new SelectListItem { Text = noLocationText, Value = "0" });
             }
+
+            //warn admin that the location is a required parameter
+            if (string.IsNullOrEmpty(_squarePaymentSettings.LocationId) || _squarePaymentSettings.LocationId.Equals("0"))
+                _notificationService.WarningNotification(_localizationService.GetResource("Plugins.Payments.Square.Fields.Location.Hint"));
 
             return View("~/Plugins/Payments.Square/Views/Configure.cshtml", model);
         }
@@ -107,9 +122,13 @@ namespace Nop.Plugin.Payments.Square.Controllers
                 return Configure();
 
             //save settings
-            _squarePaymentSettings.ApplicationId = model.ApplicationId;
-            _squarePaymentSettings.ApplicationSecret = model.ApplicationSecret;
-            _squarePaymentSettings.AccessToken = model.AccessToken;
+            _squarePaymentSettings.ApplicationId = model.UseSandbox ? model.SandboxApplicationId : model.ApplicationId;
+            if (!model.UseSandbox && !string.IsNullOrEmpty(model.ApplicationSecret))
+                _squarePaymentSettings.ApplicationSecret = model.ApplicationSecret;
+            if (model.UseSandbox && !string.IsNullOrEmpty(model.SandboxAccessToken))
+                _squarePaymentSettings.AccessToken = model.SandboxAccessToken;
+            if (model.UseSandbox != _squarePaymentSettings.UseSandbox)
+                _squarePaymentSettings.AccessToken = string.Empty;
             _squarePaymentSettings.UseSandbox = model.UseSandbox;
             _squarePaymentSettings.TransactionMode = (TransactionMode)model.TransactionModeId;
             _squarePaymentSettings.LocationId = model.LocationId;
@@ -117,11 +136,7 @@ namespace Nop.Plugin.Payments.Square.Controllers
             _squarePaymentSettings.AdditionalFeePercentage = model.AdditionalFeePercentage;
             _settingService.SaveSetting(_squarePaymentSettings);
 
-            //warn admin that the location is a required parameter
-            if (string.IsNullOrEmpty(_squarePaymentSettings.LocationId) || _squarePaymentSettings.LocationId.Equals("0"))
-                WarningNotification(_localizationService.GetResource("Plugins.Payments.Square.Fields.Location.Hint"));
-            else
-                SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
 
             return Configure();
         }
@@ -185,14 +200,14 @@ namespace Nop.Plugin.Payments.Square.Controllers
                 _squarePaymentSettings.AccessToken = accessToken;
                 _settingService.SaveSetting(_squarePaymentSettings);
 
-                SuccessNotification(_localizationService.GetResource("Plugins.Payments.Square.ObtainAccessToken.Success"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Plugins.Payments.Square.ObtainAccessToken.Success"));
             }
             catch (Exception exception)
             {
                 //display errors
-                ErrorNotification(_localizationService.GetResource("Plugins.Payments.Square.ObtainAccessToken.Error"));
+                _notificationService.ErrorNotification(_localizationService.GetResource("Plugins.Payments.Square.ObtainAccessToken.Error"));
                 if (!string.IsNullOrEmpty(exception.Message))
-                    ErrorNotification(exception.Message);
+                    _notificationService.ErrorNotification(exception.Message);
             }
 
             return RedirectToAction("Configure", "PaymentSquare", new { area = AreaNames.Admin });
@@ -225,13 +240,13 @@ namespace Nop.Plugin.Payments.Square.Controllers
                 _squarePaymentSettings.AccessToken = string.Empty;
                 _settingService.SaveSetting(_squarePaymentSettings);
 
-                SuccessNotification(_localizationService.GetResource("Plugins.Payments.Square.RevokeAccessTokens.Success"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Plugins.Payments.Square.RevokeAccessTokens.Success"));
             }
             catch (Exception exception)
             {
-                ErrorNotification(_localizationService.GetResource("Plugins.Payments.Square.RevokeAccessTokens.Error"));
+                _notificationService.ErrorNotification(_localizationService.GetResource("Plugins.Payments.Square.RevokeAccessTokens.Error"));
                 if (!string.IsNullOrEmpty(exception.Message))
-                    ErrorNotification(exception.Message);
+                    _notificationService.ErrorNotification(exception.Message);
             }
 
             return Configure();

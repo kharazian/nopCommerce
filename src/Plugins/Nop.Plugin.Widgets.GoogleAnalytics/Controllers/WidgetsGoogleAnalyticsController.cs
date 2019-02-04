@@ -1,9 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Nop.Core;
 using Nop.Plugin.Widgets.GoogleAnalytics.Models;
 using Nop.Services.Configuration;
 using Nop.Services.Localization;
+using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Web.Framework;
 using Nop.Web.Framework.Controllers;
@@ -17,25 +17,29 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics.Controllers
     public class WidgetsGoogleAnalyticsController : BasePluginController
     {
         #region Fields
-        
-        private readonly IStoreContext _storeContext;
-        private readonly ISettingService _settingService;
+
         private readonly ILocalizationService _localizationService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
+        private readonly ISettingService _settingService;
+        private readonly IStoreContext _storeContext;
 
         #endregion
 
         #region Ctor
 
-        public WidgetsGoogleAnalyticsController(IStoreContext storeContext, 
-            ISettingService settingService, 
+        public WidgetsGoogleAnalyticsController(
             ILocalizationService localizationService,
-            IPermissionService permissionService)
+            INotificationService notificationService,
+            IPermissionService permissionService,
+            ISettingService settingService,
+            IStoreContext storeContext)
         {
-            this._storeContext = storeContext;
-            this._settingService = settingService;
             this._localizationService = localizationService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
+            this._settingService = settingService;
+            this._storeContext = storeContext;
         }
 
         #endregion
@@ -56,22 +60,19 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics.Controllers
                 GoogleId = googleAnalyticsSettings.GoogleId,
                 TrackingScript = googleAnalyticsSettings.TrackingScript,
                 EnableEcommerce = googleAnalyticsSettings.EnableEcommerce,
+                UseJsToSendEcommerceInfo = googleAnalyticsSettings.UseJsToSendEcommerceInfo,
                 IncludingTax = googleAnalyticsSettings.IncludingTax,
-                ZoneId = googleAnalyticsSettings.WidgetZone,
                 IncludeCustomerId = googleAnalyticsSettings.IncludeCustomerId,
                 ActiveStoreScopeConfiguration = storeScope
             };
 
-            model.AvailableZones.Add(new SelectListItem() { Text = "Before body end html tag", Value = "body_end_html_tag_before" });
-            model.AvailableZones.Add(new SelectListItem() { Text = "Head html tag", Value = "head_html_tag" });
-            
             if (storeScope > 0)
             {
                 model.GoogleId_OverrideForStore = _settingService.SettingExists(googleAnalyticsSettings, x => x.GoogleId, storeScope);
                 model.TrackingScript_OverrideForStore = _settingService.SettingExists(googleAnalyticsSettings, x => x.TrackingScript, storeScope);
                 model.EnableEcommerce_OverrideForStore = _settingService.SettingExists(googleAnalyticsSettings, x => x.EnableEcommerce, storeScope);
+                model.UseJsToSendEcommerceInfo_OverrideForStore = _settingService.SettingExists(googleAnalyticsSettings, x => x.UseJsToSendEcommerceInfo, storeScope);
                 model.IncludingTax_OverrideForStore = _settingService.SettingExists(googleAnalyticsSettings, x => x.IncludingTax, storeScope);
-                model.ZoneId_OverrideForStore = _settingService.SettingExists(googleAnalyticsSettings, x => x.WidgetZone, storeScope);
                 model.IncludeCustomerId_OverrideForStore = _settingService.SettingExists(googleAnalyticsSettings, x => x.IncludeCustomerId, storeScope);
             }
 
@@ -91,8 +92,8 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics.Controllers
             googleAnalyticsSettings.GoogleId = model.GoogleId;
             googleAnalyticsSettings.TrackingScript = model.TrackingScript;
             googleAnalyticsSettings.EnableEcommerce = model.EnableEcommerce;
+            googleAnalyticsSettings.UseJsToSendEcommerceInfo = model.UseJsToSendEcommerceInfo;
             googleAnalyticsSettings.IncludingTax = model.IncludingTax;
-            googleAnalyticsSettings.WidgetZone = model.ZoneId;
             googleAnalyticsSettings.IncludeCustomerId = model.IncludeCustomerId;
 
             /* We do not clear cache after each setting update.
@@ -101,14 +102,14 @@ namespace Nop.Plugin.Widgets.GoogleAnalytics.Controllers
             _settingService.SaveSettingOverridablePerStore(googleAnalyticsSettings, x => x.GoogleId, model.GoogleId_OverrideForStore, storeScope, false);
             _settingService.SaveSettingOverridablePerStore(googleAnalyticsSettings, x => x.TrackingScript, model.TrackingScript_OverrideForStore, storeScope, false);
             _settingService.SaveSettingOverridablePerStore(googleAnalyticsSettings, x => x.EnableEcommerce, model.EnableEcommerce_OverrideForStore, storeScope, false);
+            _settingService.SaveSettingOverridablePerStore(googleAnalyticsSettings, x => x.UseJsToSendEcommerceInfo, model.UseJsToSendEcommerceInfo_OverrideForStore, storeScope, false);
             _settingService.SaveSettingOverridablePerStore(googleAnalyticsSettings, x => x.IncludingTax, model.IncludingTax_OverrideForStore, storeScope, false);
-            _settingService.SaveSettingOverridablePerStore(googleAnalyticsSettings, x => x.WidgetZone, model.ZoneId_OverrideForStore, storeScope, false);
             _settingService.SaveSettingOverridablePerStore(googleAnalyticsSettings, x => x.IncludeCustomerId, model.IncludeCustomerId_OverrideForStore, storeScope, false);
 
             //now clear settings cache
             _settingService.ClearCache();
 
-            SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
 
             return Configure();
         }

@@ -11,10 +11,11 @@ using Nop.Services.Directory;
 using Nop.Services.ExportImport;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
+using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Services.Stores;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Directory;
 using Nop.Web.Framework.Kendoui;
 using Nop.Web.Framework.Mvc;
@@ -34,6 +35,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly IImportManager _importManager;
         private readonly ILocalizationService _localizationService;
         private readonly ILocalizedEntityService _localizedEntityService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly IStateProvinceService _stateProvinceService;
         private readonly IStoreMappingService _storeMappingService;
@@ -51,6 +53,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             IImportManager importManager,
             ILocalizationService localizationService,
             ILocalizedEntityService localizedEntityService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             IStateProvinceService stateProvinceService,
             IStoreMappingService storeMappingService,
@@ -64,6 +67,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._importManager = importManager;
             this._localizationService = localizationService;
             this._localizedEntityService = localizedEntityService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._stateProvinceService = stateProvinceService;
             this._storeMappingService = storeMappingService;
@@ -171,7 +175,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var country = model.ToEntity();
+                var country = model.ToEntity<Country>();
                 _countryService.InsertCountry(country);
 
                 //activity log
@@ -184,7 +188,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //Stores
                 SaveStoreMappings(country, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Countries.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Countries.Added"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -244,7 +248,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //stores
                 SaveStoreMappings(country, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Countries.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Countries.Updated"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -284,13 +288,13 @@ namespace Nop.Web.Areas.Admin.Controllers
                 _customerActivityService.InsertActivity("DeleteCountry",
                     string.Format(_localizationService.GetResource("ActivityLog.DeleteCountry"), country.Id), country);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Countries.Deleted"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Countries.Deleted"));
 
                 return RedirectToAction("List");
             }
             catch (Exception exc)
             {
-                ErrorNotification(exc);
+                _notificationService.ErrorNotification(exc);
                 return RedirectToAction("Edit", new { id = country.Id });
             }
         }
@@ -382,7 +386,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var sp = model.ToEntity();
+                var sp = model.ToEntity<StateProvince>();
 
                 _stateProvinceService.InsertStateProvince(sp);
 
@@ -571,18 +575,18 @@ namespace Nop.Web.Areas.Admin.Controllers
                 {
                     var count = _importManager.ImportStatesFromTxt(importcsvfile.OpenReadStream());
 
-                    SuccessNotification(string.Format(_localizationService.GetResource("Admin.Configuration.Countries.ImportSuccess"), count));
+                    _notificationService.SuccessNotification(string.Format(_localizationService.GetResource("Admin.Configuration.Countries.ImportSuccess"), count));
 
                     return RedirectToAction("List");
                 }
 
-                ErrorNotification(_localizationService.GetResource("Admin.Common.UploadFile"));
+                _notificationService.ErrorNotification(_localizationService.GetResource("Admin.Common.UploadFile"));
 
                 return RedirectToAction("List");
             }
             catch (Exception exc)
             {
-                ErrorNotification(exc);
+                _notificationService.ErrorNotification(exc);
                 return RedirectToAction("List");
             }
         }

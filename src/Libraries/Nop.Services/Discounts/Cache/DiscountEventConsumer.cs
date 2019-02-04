@@ -30,131 +30,118 @@ namespace Nop.Services.Discounts.Cache
         IConsumer<EntityUpdatedEvent<Manufacturer>>,
         IConsumer<EntityDeletedEvent<Manufacturer>>
     {
-        /// <summary>
-        /// Key for discount requirement of a certain discount
-        /// </summary>
-        /// <remarks>
-        /// {0} : discount id
-        /// </remarks>
-        public const string DISCOUNT_REQUIREMENT_MODEL_KEY = "Nop.discounts.requirements-{0}";
-        public const string DISCOUNT_REQUIREMENT_PATTERN_KEY = "Nop.discounts.requirements";
-
-        /// <summary>
-        /// Key for caching
-        /// </summary>
-        /// <remarks>
-        /// {0} : show hidden records?
-        /// {1} : coupon code
-        /// {2} : discount name
-        /// </remarks>
-        public const string DISCOUNT_ALL_KEY = "Nop.discounts.all-{0}-{1}-{2}";
-        public const string DISCOUNT_ALL_PATTERN_KEY = "Nop.discounts.all";
-
-        /// <summary>
-        /// Key for category IDs of a discount
-        /// </summary>
-        /// <remarks>
-        /// {0} : discount id
-        /// {1} : roles of the current user
-        /// {2} : current store ID
-        /// </remarks>
-        public const string DISCOUNT_CATEGORY_IDS_MODEL_KEY = "Nop.discounts.categoryids-{0}-{1}-{2}";
-        public const string DISCOUNT_CATEGORY_IDS_PATTERN_KEY = "Nop.discounts.categoryids";
-
-        /// <summary>
-        /// Key for manufacturer IDs of a discount
-        /// </summary>
-        /// <remarks>
-        /// {0} : discount id
-        /// {1} : roles of the current user
-        /// {2} : current store ID
-        /// </remarks>
-        public const string DISCOUNT_MANUFACTURER_IDS_MODEL_KEY = "Nop.discounts.manufacturerids-{0}-{1}-{2}";
-        public const string DISCOUNT_MANUFACTURER_IDS_PATTERN_KEY = "Nop.discounts.manufacturerids";
+        #region Fields
 
         private readonly IStaticCacheManager _cacheManager;
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="cacheManager">Cache manager</param>
+        #endregion
+
+        #region Ctor
+
         public DiscountEventConsumer(IStaticCacheManager cacheManager)
         {
             this._cacheManager = cacheManager;
         }
 
-        //discounts
+        #endregion
+
+        #region Methods
+
+        #region Discounts
+
         public void HandleEvent(EntityInsertedEvent<Discount> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_ALL_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_REQUIREMENT_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_CATEGORY_IDS_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_MANUFACTURER_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountAllPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountRequirementPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountCategoryIdsPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountManufacturerIdsPatternCacheKey);
         }
+
         public void HandleEvent(EntityUpdatedEvent<Discount> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_ALL_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_REQUIREMENT_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_CATEGORY_IDS_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_MANUFACTURER_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountAllPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountRequirementPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountCategoryIdsPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountManufacturerIdsPatternCacheKey);
         }
+
         public void HandleEvent(EntityDeletedEvent<Discount> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_ALL_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_REQUIREMENT_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_CATEGORY_IDS_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_MANUFACTURER_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountAllPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountRequirementPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountCategoryIdsPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountManufacturerIdsPatternCacheKey);
         }
 
-        //discount requirements
+        #endregion
+
+        #region Discount requirements
+
         public void HandleEvent(EntityInsertedEvent<DiscountRequirement> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_REQUIREMENT_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountRequirementPatternCacheKey);
         }
+
         public void HandleEvent(EntityUpdatedEvent<DiscountRequirement> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_REQUIREMENT_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountRequirementPatternCacheKey);
         }
+
         public void HandleEvent(EntityDeletedEvent<DiscountRequirement> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_REQUIREMENT_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountRequirementPatternCacheKey);
         }
 
+        #endregion
 
-        //settings
+        #region Settings
+
         public void HandleEvent(EntityUpdatedEvent<Setting> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_CATEGORY_IDS_PATTERN_KEY);
-            _cacheManager.RemoveByPattern(DISCOUNT_MANUFACTURER_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountCategoryIdsPatternCacheKey);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountManufacturerIdsPatternCacheKey);
         }
 
-        //categories
+        #endregion
+
+        #region Categories
+
         public void HandleEvent(EntityInsertedEvent<Category> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_CATEGORY_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountCategoryIdsPatternCacheKey);
         }
+
         public void HandleEvent(EntityUpdatedEvent<Category> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_CATEGORY_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountCategoryIdsPatternCacheKey);
         }
+
         public void HandleEvent(EntityDeletedEvent<Category> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_CATEGORY_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountCategoryIdsPatternCacheKey);
         }
 
+        #endregion
 
-        //manufacturers
+        #region Manufacturers
+
         public void HandleEvent(EntityInsertedEvent<Manufacturer> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_MANUFACTURER_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountManufacturerIdsPatternCacheKey);
         }
+
         public void HandleEvent(EntityUpdatedEvent<Manufacturer> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_MANUFACTURER_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountManufacturerIdsPatternCacheKey);
         }
+
         public void HandleEvent(EntityDeletedEvent<Manufacturer> eventMessage)
         {
-            _cacheManager.RemoveByPattern(DISCOUNT_MANUFACTURER_IDS_PATTERN_KEY);
+            _cacheManager.RemoveByPattern(NopDiscountDefaults.DiscountManufacturerIdsPatternCacheKey);
         }
+
+        #endregion
+
+        #endregion
     }
 }

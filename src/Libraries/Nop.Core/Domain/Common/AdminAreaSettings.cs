@@ -28,12 +28,22 @@ namespace Nop.Core.Domain.Common
         public string RichEditorAdditionalSettings { get; set; }
 
         /// <summary>
-        ///A value indicating whether to javascript is supported in rich editor
+        /// A value indicating whether to javascript is supported in rich editor
         /// </summary>
         public bool RichEditorAllowJavaScript { get; set; }
 
         /// <summary>
-        ///A value indicating whether to use rich editor on message templates and campaigns details pages
+        /// A value indicating whether to style tag is supported in rich editor
+        /// </summary>
+        public bool RichEditorAllowStyleTag { get; set; }
+
+        /// <summary>
+        /// A value indicating whether to use rich text editor on email messages for customers
+        /// </summary>
+        public bool UseRichEditorForCustomerEmails { get; set; }
+
+        /// <summary>
+        /// A value indicating whether to use rich editor on message templates and campaigns details pages
         /// </summary>
         public bool UseRichEditorInMessageTemplates { get; set; }
 
@@ -41,6 +51,11 @@ namespace Nop.Core.Domain.Common
         /// Gets or sets a value indicating whether advertisements (news) should be hidden
         /// </summary>
         public bool HideAdvertisementsOnAdminArea { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether we should display a recommendation about copyright removal key
+        /// </summary>
+        public bool CheckCopyrightRemovalKey { get; set; }
 
         /// <summary>
         /// Gets or sets title of last news (admin area)

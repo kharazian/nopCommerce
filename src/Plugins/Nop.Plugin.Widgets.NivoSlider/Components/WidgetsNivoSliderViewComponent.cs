@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using System;
+using Microsoft.AspNetCore.Mvc;
 using Nop.Core;
 using Nop.Core.Caching;
 using Nop.Plugin.Widgets.NivoSlider.Infrastructure.Cache;
@@ -16,16 +17,19 @@ namespace Nop.Plugin.Widgets.NivoSlider.Components
         private readonly IStaticCacheManager _cacheManager;
         private readonly ISettingService _settingService;
         private readonly IPictureService _pictureService;
+        private readonly IWebHelper _webHelper;
 
         public WidgetsNivoSliderViewComponent(IStoreContext storeContext, 
             IStaticCacheManager cacheManager, 
             ISettingService settingService, 
-            IPictureService pictureService)
+            IPictureService pictureService,
+            IWebHelper webHelper)
         {
             this._storeContext = storeContext;
             this._cacheManager = cacheManager;
             this._settingService = settingService;
             this._pictureService = pictureService;
+            this._webHelper = webHelper;
         }
 
         public IViewComponentResult Invoke(string widgetZone, object additionalData)
@@ -37,22 +41,27 @@ namespace Nop.Plugin.Widgets.NivoSlider.Components
                 Picture1Url = GetPictureUrl(nivoSliderSettings.Picture1Id),
                 Text1 = nivoSliderSettings.Text1,
                 Link1 = nivoSliderSettings.Link1,
+                AltText1 = nivoSliderSettings.AltText1,
 
                 Picture2Url = GetPictureUrl(nivoSliderSettings.Picture2Id),
                 Text2 = nivoSliderSettings.Text2,
                 Link2 = nivoSliderSettings.Link2,
+                AltText2 = nivoSliderSettings.AltText2,
 
                 Picture3Url = GetPictureUrl(nivoSliderSettings.Picture3Id),
                 Text3 = nivoSliderSettings.Text3,
                 Link3 = nivoSliderSettings.Link3,
+                AltText3 = nivoSliderSettings.AltText3,
 
                 Picture4Url = GetPictureUrl(nivoSliderSettings.Picture4Id),
                 Text4 = nivoSliderSettings.Text4,
                 Link4 = nivoSliderSettings.Link4,
+                AltText4 = nivoSliderSettings.AltText4,
 
                 Picture5Url = GetPictureUrl(nivoSliderSettings.Picture5Id),
                 Text5 = nivoSliderSettings.Text5,
-                Link5 = nivoSliderSettings.Link5
+                Link5 = nivoSliderSettings.Link5,
+                AltText5 = nivoSliderSettings.AltText5
             };
 
             if (string.IsNullOrEmpty(model.Picture1Url) && string.IsNullOrEmpty(model.Picture2Url) &&
@@ -66,7 +75,9 @@ namespace Nop.Plugin.Widgets.NivoSlider.Components
 
         protected string GetPictureUrl(int pictureId)
         {
-            var cacheKey = string.Format(ModelCacheEventConsumer.PICTURE_URL_MODEL_KEY, pictureId);
+            var cacheKey = string.Format(ModelCacheEventConsumer.PICTURE_URL_MODEL_KEY, 
+                pictureId, _webHelper.IsCurrentConnectionSecured() ? Uri.UriSchemeHttps : Uri.UriSchemeHttp);
+
             return _cacheManager.Get(cacheKey, () =>
             {
                 //little hack here. nulls aren't cacheable so set it to ""

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Nop.Core;
 using Nop.Core.Domain.Affiliates;
 using Nop.Core.Domain.Common;
 using Nop.Services.Affiliates;
@@ -10,7 +9,7 @@ using Nop.Services.Customers;
 using Nop.Services.Helpers;
 using Nop.Services.Localization;
 using Nop.Services.Orders;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Affiliates;
 using Nop.Web.Areas.Admin.Models.Common;
 
@@ -30,8 +29,6 @@ namespace Nop.Web.Areas.Admin.Factories
         private readonly ILocalizationService _localizationService;
         private readonly IOrderService _orderService;
         private readonly IPriceFormatter _priceFormatter;
-        private readonly IWebHelper _webHelper;
-        private readonly IWorkContext _workContext;
 
         #endregion
 
@@ -43,9 +40,7 @@ namespace Nop.Web.Areas.Admin.Factories
             IDateTimeHelper dateTimeHelper,
             ILocalizationService localizationService,
             IOrderService orderService,
-            IPriceFormatter priceFormatter,
-            IWebHelper webHelper,
-            IWorkContext workContext)
+            IPriceFormatter priceFormatter)
         {
             this._affiliateService = affiliateService;
             this._baseAdminModelFactory = baseAdminModelFactory;
@@ -54,8 +49,6 @@ namespace Nop.Web.Areas.Admin.Factories
             this._localizationService = localizationService;
             this._orderService = orderService;
             this._priceFormatter = priceFormatter;
-            this._webHelper = webHelper;
-            this._workContext = workContext;
         }
 
         #endregion
@@ -102,7 +95,7 @@ namespace Nop.Web.Areas.Admin.Factories
             //prepare available states
             _baseAdminModelFactory.PrepareStatesAndProvinces(model.AvailableStates, model.CountryId);
         }
-        
+
         /// <summary>
         /// Prepare affiliated order search model
         /// </summary>
@@ -181,7 +174,7 @@ namespace Nop.Web.Areas.Admin.Factories
         {
             if (searchModel == null)
                 throw new ArgumentNullException(nameof(searchModel));
-            
+
             //get affiliates
             var affiliates = _affiliateService.GetAllAffiliates(searchModel.SearchFriendlyUrlName,
                 searchModel.SearchFirstName,
@@ -195,11 +188,14 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new AffiliateListModel
             {
                 //fill in model values from the entity
-                Data = affiliates.Select(affiliate => new AffiliateModel
+                Data = affiliates.Select(affiliate =>
                 {
-                    Id = affiliate.Id,
-                    Active = affiliate.Active,
-                    Address = affiliate.Address.ToModel()
+                    var affiliateModel = affiliate.ToModel<AffiliateModel>();
+                    affiliateModel.Address = affiliate.Address.ToModel<AddressModel>();
+                    affiliateModel.Address.CountryName = affiliate.Address.Country?.Name;
+                    affiliateModel.Address.StateProvinceName = affiliate.Address.StateProvince?.Name;
+
+                    return affiliateModel;
                 }),
                 Total = affiliates.TotalCount
             };
@@ -219,9 +215,8 @@ namespace Nop.Web.Areas.Admin.Factories
             //fill in model values from the entity
             if (affiliate != null)
             {
-                model = model ?? new AffiliateModel();
-                model.Id = affiliate.Id;
-                model.Url = affiliate.GenerateUrl(_webHelper);
+                model = model ?? affiliate.ToModel<AffiliateModel>();
+                model.Url = _affiliateService.GenerateUrl(affiliate);
 
                 //prepare nested search models
                 PrepareAffiliatedOrderSearchModel(model.AffiliatedOrderSearchModel, affiliate);
@@ -233,7 +228,7 @@ namespace Nop.Web.Areas.Admin.Factories
                     model.AdminComment = affiliate.AdminComment;
                     model.FriendlyUrlName = affiliate.FriendlyUrlName;
                     model.Active = affiliate.Active;
-                    model.Address = affiliate.Address.ToModel();
+                    model.Address = affiliate.Address.ToModel(model.Address);
                 }
             }
 
@@ -253,7 +248,7 @@ namespace Nop.Web.Areas.Admin.Factories
         {
             if (searchModel == null)
                 throw new ArgumentNullException(nameof(searchModel));
-            
+
             if (affiliate == null)
                 throw new ArgumentNullException(nameof(affiliate));
 
@@ -279,16 +274,18 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new AffiliatedOrderListModel
             {
                 //fill in model values from the entity
-                Data = orders.Select(order => new AffiliatedOrderModel
+                Data = orders.Select(order => 
                 {
-                    Id = order.Id,
-                    OrderStatus = order.OrderStatus.GetLocalizedEnum(_localizationService, _workContext),
-                    OrderStatusId = order.OrderStatusId,
-                    PaymentStatus = order.PaymentStatus.GetLocalizedEnum(_localizationService, _workContext),
-                    ShippingStatus = order.ShippingStatus.GetLocalizedEnum(_localizationService, _workContext),
-                    OrderTotal = _priceFormatter.FormatPrice(order.OrderTotal, true, false),
-                    CreatedOn = _dateTimeHelper.ConvertToUserTime(order.CreatedOnUtc, DateTimeKind.Utc),
-                    CustomOrderNumber = order.CustomOrderNumber
+                    var affiliatedOrderModel = order.ToModel<AffiliatedOrderModel>();
+
+                    //fill in additional values (not existing in the entity)
+                    affiliatedOrderModel.OrderStatus = _localizationService.GetLocalizedEnum(order.OrderStatus);
+                    affiliatedOrderModel.PaymentStatus = _localizationService.GetLocalizedEnum(order.PaymentStatus);
+                    affiliatedOrderModel.ShippingStatus = _localizationService.GetLocalizedEnum(order.ShippingStatus);
+                    affiliatedOrderModel.OrderTotal = _priceFormatter.FormatPrice(order.OrderTotal, true, false);
+                    affiliatedOrderModel.CreatedOn = _dateTimeHelper.ConvertToUserTime(order.CreatedOnUtc, DateTimeKind.Utc);
+
+                    return affiliatedOrderModel;
                 }),
                 Total = orders.TotalCount
             };
@@ -302,7 +299,7 @@ namespace Nop.Web.Areas.Admin.Factories
         /// <param name="searchModel">Affiliated customer search model</param>
         /// <param name="affiliate">Affiliate</param>
         /// <returns>Affiliated customer list model</returns>
-        public virtual AffiliatedCustomerListModel PrepareAffiliatedCustomerListModel(AffiliatedCustomerSearchModel searchModel, 
+        public virtual AffiliatedCustomerListModel PrepareAffiliatedCustomerListModel(AffiliatedCustomerSearchModel searchModel,
             Affiliate affiliate)
         {
             if (searchModel == null)
@@ -319,10 +316,12 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new AffiliatedCustomerListModel
             {
                 //fill in model values from the entity
-                Data = customers.Select(customer => new AffiliatedCustomerModel
+                Data = customers.Select(customer =>
                 {
-                    Id = customer.Id,
-                    Name = customer.Email
+                    var affiliatedCustomerModel = customer.ToModel<AffiliatedCustomerModel>();
+                    affiliatedCustomerModel.Name = customer.Email;
+
+                    return affiliatedCustomerModel;
                 }),
                 Total = customers.TotalCount
             };

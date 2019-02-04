@@ -174,7 +174,7 @@
                                 </div>
                             </div>
                             <div class="col-md-7">
-                                <div class="form-group" @(Model.AvailableStores.SelectionIsNotPossible() ? Html.Raw("style=\"display:none\"") : null)>
+                                <div class="form-group" @(Model.HideStoresList ? Html.Raw("style=\"display:none\"") : null)>
                                     <div class="col-md-4">
                                         <nop-label asp-for="StoreId" />
                                     </div>
@@ -434,16 +434,6 @@
                                     $('.checkboxGroups').attr('checked', false).change();
                                     selectedIds = [];
                                     return false;
-                                });
-
-                                $("".concat("#@Html.IdFor(model => model.BillingEmail),",
-                                    "#@Html.IdFor(model => model.BillingLastName),",
-                                    "#@Html.IdFor(model => model.BillingPhone),",
-                                    "#@Html.IdFor(model => model.OrderNotes)")).keydown(function (event) {
-                                    if (event.keyCode === 13) {
-                                        $("#search-orders").click();
-                                        return false;
-                                    }
                                 });
 
                                 $("#@Html.IdFor(model => model.GoDirectlyToCustomOrderNumber)").keydown(function(event) {

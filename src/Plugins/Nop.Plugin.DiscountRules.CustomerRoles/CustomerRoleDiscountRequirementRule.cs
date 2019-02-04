@@ -3,6 +3,7 @@ using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Routing;
+using Nop.Core;
 using Nop.Core.Plugins;
 using Nop.Services.Configuration;
 using Nop.Services.Discounts;
@@ -16,8 +17,10 @@ namespace Nop.Plugin.DiscountRules.CustomerRoles
 
         private readonly IActionContextAccessor _actionContextAccessor;
         private readonly IDiscountService _discountService;
+        private readonly ILocalizationService _localizationService;
         private readonly ISettingService _settingService;
         private readonly IUrlHelperFactory _urlHelperFactory;
+        private readonly IWebHelper _webHelper;
 
         #endregion
 
@@ -25,13 +28,17 @@ namespace Nop.Plugin.DiscountRules.CustomerRoles
 
         public CustomerRoleDiscountRequirementRule(IActionContextAccessor actionContextAccessor,
             IDiscountService discountService,
+            ILocalizationService localizationService,
             ISettingService settingService,
-            IUrlHelperFactory urlHelperFactory)
+            IUrlHelperFactory urlHelperFactory,
+            IWebHelper webHelper)
         {
             this._actionContextAccessor = actionContextAccessor;
             this._discountService = discountService;
+            this._localizationService = localizationService;
             this._settingService = settingService;
             this._urlHelperFactory = urlHelperFactory;
+            this._webHelper = webHelper;
         }
 
         #endregion
@@ -74,8 +81,9 @@ namespace Nop.Plugin.DiscountRules.CustomerRoles
         public string GetConfigurationUrl(int discountId, int? discountRequirementId)
         {
             var urlHelper = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext);
-            return urlHelper.Action("Configure", "DiscountRulesCustomerRoles",
-                new { discountId = discountId, discountRequirementId = discountRequirementId }).TrimStart('/');
+            
+            return urlHelper.Action("Configure", "DiscountRulesCustomerRoles", 
+                new { discountId = discountId, discountRequirementId = discountRequirementId }, _webHelper.CurrentRequestProtocol);
         }
 
         /// <summary>
@@ -84,9 +92,9 @@ namespace Nop.Plugin.DiscountRules.CustomerRoles
         public override void Install()
         {
             //locales
-            this.AddOrUpdatePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole", "Required customer role");
-            this.AddOrUpdatePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole.Hint", "Discount will be applied if customer is in the selected customer role.");
-            this.AddOrUpdatePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole.Select", "Select customer role");
+            _localizationService.AddOrUpdatePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole", "Required customer role");
+            _localizationService.AddOrUpdatePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole.Hint", "Discount will be applied if customer is in the selected customer role.");
+            _localizationService.AddOrUpdatePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole.Select", "Select customer role");
 
             base.Install();
         }
@@ -105,9 +113,9 @@ namespace Nop.Plugin.DiscountRules.CustomerRoles
             }
 
             //locales
-            this.DeletePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole");
-            this.DeletePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole.Hint");
-            this.DeletePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole.Select");
+            _localizationService.DeletePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole");
+            _localizationService.DeletePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole.Hint");
+            _localizationService.DeletePluginLocaleResource("Plugins.DiscountRules.CustomerRoles.Fields.CustomerRole.Select");
 
             base.Uninstall();
         }

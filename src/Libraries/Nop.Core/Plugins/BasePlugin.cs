@@ -23,7 +23,6 @@
         /// </summary>
         public virtual void Install() 
         {
-            PluginManager.MarkPluginAsInstalled(this.PluginDescriptor.SystemName);
         }
 
         /// <summary>
@@ -31,7 +30,6 @@
         /// </summary>
         public virtual void Uninstall() 
         {
-            PluginManager.MarkPluginAsUninstalled(this.PluginDescriptor.SystemName);
         }
     }
 }

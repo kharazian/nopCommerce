@@ -5,12 +5,10 @@ using Nop.Core.Plugins;
 namespace Nop.Services.Plugins
 {
     /// <summary>
-    /// Represents a service for uploading application extensions (plugins or themes)
+    /// Represents a service for uploading application extensions (plugins or themes) and favicon and app icons
     /// </summary>
     public partial interface IUploadService
     {
-        #region Methods
-
         /// <summary>
         /// Upload plugins and/or themes
         /// </summary>
@@ -18,20 +16,11 @@ namespace Nop.Services.Plugins
         /// <returns>List of uploaded items descriptor</returns>
         IList<IDescriptor> UploadPluginsAndThemes(IFormFile archivefile);
 
-        #endregion
-
-        #region Properties
-
         /// <summary>
-        /// Gets the path to temp directory with uploads
+        /// Upload favicon and app icons
         /// </summary>
-        string UploadsTempPath { get; }
+        /// <param name="archivefile">Archive file</param>
+        void UploadIconsArchive(IFormFile archivefile);
 
-        /// <summary>
-        /// Gets the name of the file containing information about the uploaded items
-        /// </summary>
-        string UploadedItemsFileName { get; }
-
-        #endregion
     }
 }

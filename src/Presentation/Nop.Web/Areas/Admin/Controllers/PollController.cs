@@ -3,11 +3,12 @@ using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Nop.Core.Domain.Polls;
 using Nop.Services.Localization;
+using Nop.Services.Messages;
 using Nop.Services.Polls;
 using Nop.Services.Security;
 using Nop.Services.Stores;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Polls;
 using Nop.Web.Framework.Kendoui;
 using Nop.Web.Framework.Mvc;
@@ -20,6 +21,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         #region Fields
 
         private readonly ILocalizationService _localizationService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly IPollModelFactory _pollModelFactory;
         private readonly IPollService _pollService;
@@ -31,6 +33,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         #region Ctor
 
         public PollController(ILocalizationService localizationService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             IPollModelFactory pollModelFactory,
             IPollService pollService,
@@ -38,6 +41,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             IStoreService storeService)
         {
             this._localizationService = localizationService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._pollModelFactory = pollModelFactory;
             this._pollService = pollService;
@@ -122,15 +126,13 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var poll = model.ToEntity();
-                poll.StartDateUtc = model.StartDate;
-                poll.EndDateUtc = model.EndDate;
+                var poll = model.ToEntity<Poll>();
                 _pollService.InsertPoll(poll);
 
                 //save store mappings
                 SaveStoreMappings(poll, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Polls.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Polls.Added"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -178,14 +180,12 @@ namespace Nop.Web.Areas.Admin.Controllers
             if (ModelState.IsValid)
             {
                 poll = model.ToEntity(poll);
-                poll.StartDateUtc = model.StartDate;
-                poll.EndDateUtc = model.EndDate;
                 _pollService.UpdatePoll(poll);
 
                 //save store mappings
                 SaveStoreMappings(poll, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Polls.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Polls.Updated"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -216,7 +216,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             _pollService.DeletePoll(poll);
 
-            SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Polls.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Polls.Deleted"));
 
             return RedirectToAction("List");
         }
@@ -254,8 +254,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             var pollAnswer = _pollService.GetPollAnswerById(model.Id)
                 ?? throw new ArgumentException("No poll answer found with the specified id");
 
-            pollAnswer.Name = model.Name;
-            pollAnswer.DisplayOrder = model.DisplayOrder;
+            pollAnswer = model.ToEntity(pollAnswer);
             _pollService.UpdatePoll(pollAnswer.Poll);
 
             return new NullJsonResult();
@@ -274,11 +273,8 @@ namespace Nop.Web.Areas.Admin.Controllers
             var poll = _pollService.GetPollById(pollId)
                 ?? throw new ArgumentException("No poll found with the specified id", nameof(pollId));
 
-            poll.PollAnswers.Add(new PollAnswer
-            {
-                Name = model.Name,
-                DisplayOrder = model.DisplayOrder
-            });
+            //fill entity from model
+            poll.PollAnswers.Add(model.ToEntity<PollAnswer>());
             _pollService.UpdatePoll(poll);
 
             return new NullJsonResult();

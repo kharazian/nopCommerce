@@ -1,10 +1,10 @@
 ﻿using FluentValidation.TestHelper;
+using Moq;
 using Nop.Core.Domain.Customers;
 using Nop.Services.Directory;
 using Nop.Web.Models.Customer;
 using Nop.Web.Validators.Customer;
 using NUnit.Framework;
-using Rhino.Mocks;
 
 namespace Nop.Web.MVC.Tests.Public.Validators.Customer
 {
@@ -12,15 +12,15 @@ namespace Nop.Web.MVC.Tests.Public.Validators.Customer
     public class RegisterValidatorTests : BaseValidatorTests
     {
         private RegisterValidator _validator;
-        private IStateProvinceService _stateProvinceService;
+        private Mock<IStateProvinceService> _stateProvinceService;
         private CustomerSettings _customerSettings;
         
         [SetUp]
         public new void Setup()
         {
             _customerSettings = new CustomerSettings();
-            _stateProvinceService = MockRepository.GenerateMock<IStateProvinceService>();
-            _validator = new RegisterValidator(_localizationService, _stateProvinceService, _customerSettings);
+            _stateProvinceService = new Mock<IStateProvinceService>();
+            _validator = new RegisterValidator(_localizationService, _stateProvinceService.Object, _customerSettings);
         }
         
         [Test]
@@ -171,25 +171,6 @@ namespace Nop.Web.MVC.Tests.Public.Validators.Customer
                 ConfirmPassword = "some password"
             };
             _validator.ShouldNotHaveValidationErrorFor(x => x.Password, model);
-        }
-
-        [Test]
-        public void Should_validate_password_is_length()
-        {
-            _customerSettings.PasswordMinLength = 5;
-            _validator = new RegisterValidator(_localizationService, _stateProvinceService, _customerSettings);
-
-            var model = new RegisterModel
-            {
-                Password = "1234"
-            };
-            //we know that password should equal confirmation password
-            model.ConfirmPassword = model.Password;
-            _validator.ShouldHaveValidationErrorFor(x => x.Password, model);
-            model.Password = "12345";
-            //we know that password should equal confirmation password
-            model.ConfirmPassword = model.Password;
-            _validator.ShouldNotHaveValidationErrorFor(x => x.Password, model);
-        }
+        }        
     }
 }

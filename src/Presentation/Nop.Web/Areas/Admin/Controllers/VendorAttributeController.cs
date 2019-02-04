@@ -3,10 +3,11 @@ using Microsoft.AspNetCore.Mvc;
 using Nop.Core.Domain.Vendors;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
+using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Services.Vendors;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Vendors;
 using Nop.Web.Framework.Mvc;
 using Nop.Web.Framework.Mvc.Filters;
@@ -20,6 +21,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly ICustomerActivityService _customerActivityService;
         private readonly ILocalizationService _localizationService;
         private readonly ILocalizedEntityService _localizedEntityService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly IVendorAttributeModelFactory _vendorAttributeModelFactory;
         private readonly IVendorAttributeService _vendorAttributeService;
@@ -31,6 +33,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         public VendorAttributeController(ICustomerActivityService customerActivityService,
             ILocalizationService localizationService,
             ILocalizedEntityService localizedEntityService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             IVendorAttributeModelFactory vendorAttributeModelFactory,
             IVendorAttributeService vendorAttributeService)
@@ -38,6 +41,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._customerActivityService = customerActivityService;
             this._localizationService = localizationService;
             this._localizedEntityService = localizedEntityService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._vendorAttributeModelFactory = vendorAttributeModelFactory;
             this._vendorAttributeService = vendorAttributeService;
@@ -118,7 +122,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var vendorAttribute = model.ToEntity();
+                var vendorAttribute = model.ToEntity<VendorAttribute>();
                 _vendorAttributeService.InsertVendorAttribute(vendorAttribute);
 
                 //activity log
@@ -128,7 +132,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //locales
                 UpdateAttributeLocales(vendorAttribute, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Vendors.VendorAttributes.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Vendors.VendorAttributes.Added"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -185,7 +189,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //locales
                 UpdateAttributeLocales(vendorAttribute, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Vendors.VendorAttributes.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Vendors.VendorAttributes.Updated"));
                 if (!continueEditing)
                     return RedirectToAction("List");
 
@@ -219,7 +223,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             _customerActivityService.InsertActivity("DeleteVendorAttribute",
                 string.Format(_localizationService.GetResource("ActivityLog.DeleteVendorAttribute"), vendorAttribute.Id), vendorAttribute);
 
-            SuccessNotification(_localizationService.GetResource("Admin.Vendors.VendorAttributes.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Vendors.VendorAttributes.Deleted"));
 
             return RedirectToAction("List");
         }
@@ -273,13 +277,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var value = new VendorAttributeValue
-                {
-                    VendorAttributeId = model.VendorAttributeId,
-                    Name = model.Name,
-                    IsPreSelected = model.IsPreSelected,
-                    DisplayOrder = model.DisplayOrder
-                };
+                var value = model.ToEntity<VendorAttributeValue>();
 
                 _vendorAttributeService.InsertVendorAttributeValue(value);
 
@@ -341,9 +339,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                vendorAttributeValue.Name = model.Name;
-                vendorAttributeValue.IsPreSelected = model.IsPreSelected;
-                vendorAttributeValue.DisplayOrder = model.DisplayOrder;
+                vendorAttributeValue = model.ToEntity(vendorAttributeValue);
                 _vendorAttributeService.UpdateVendorAttributeValue(vendorAttributeValue);
 
                 //activity log

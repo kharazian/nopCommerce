@@ -23,12 +23,8 @@ namespace Nop.Services.Directory
 
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="logger">Logger</param>
-        /// <param name="fileProvider">File provider</param>
-        public GeoLookupService(ILogger logger, INopFileProvider fileProvider)
+        public GeoLookupService(ILogger logger,
+            INopFileProvider fileProvider)
         {
             this._logger = logger;
             this._fileProvider = fileProvider;
@@ -88,7 +84,7 @@ namespace Nop.Services.Directory
         #region Methods
 
         /// <summary>
-        /// Get country name
+        /// Get country ISO code
         /// </summary>
         /// <param name="ipAddress">IP address</param>
         /// <returns>Country name</returns>
@@ -98,7 +94,7 @@ namespace Nop.Services.Directory
             if (response?.Country != null)
                 return response.Country.IsoCode;
 
-            return "";
+            return string.Empty;
         }
 
         /// <summary>
@@ -112,7 +108,7 @@ namespace Nop.Services.Directory
             if (response?.Country != null)
                 return response.Country.Name;
 
-            return "";
+            return string.Empty;
         }
 
         #endregion

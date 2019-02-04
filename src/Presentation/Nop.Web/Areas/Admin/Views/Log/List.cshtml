@@ -18,6 +18,7 @@
                 <i class="fa fa-trash-o"></i>
                 @T("Admin.System.Log.DeleteSelected")
             </button>
+            <nop-action-confirmation asp-button-id="delete-selected" />
             <button type="submit" id="clearall" name="clearall" class="btn bg-red">
                 <i class="fa fa-trash-o"></i>
                 @T("Admin.System.Log.ClearLog")
@@ -30,7 +31,7 @@
     <div class="content">
         <div class="form-horizontal">
             <div class="panel-group">
-                <div class="panel panel-default">
+                <div class="panel panel-default panel-search">
                     <div class="panel-body">
                         <div class="row">
                             <div class="col-md-6">
@@ -178,28 +179,18 @@
                                     return false;
                                 });
 
-                                $("#@Html.IdFor(model => model.Message)").keydown(function(event) {
-                                    if (event.keyCode == 13) {
-                                        $("#search-log").click();
-                                        return false;
-                                    }
-                                });
-
                                 //"delete selected" button
-                                $('#delete-selected').click(function(e) {
-                                    e.preventDefault();
-
+                                $("#delete-selected-action-confirmation-submit-button").bind("click", function () {
                                     var postData = {
                                         selectedIds: selectedIds
                                     };
                                     addAntiForgeryToken(postData);
-
                                     $.ajax({
                                         cache: false,
                                         type: "POST",
                                         url: "@(Url.Action("DeleteSelected", "Log"))",
                                         data: postData,
-                                        complete: function(data) {
+                                        complete: function (data) {
                                             //reload grid
                                             var grid = $('#log-grid').data('kendoGrid');
                                             grid.dataSource.page(1); //new search. Set page size to 1
@@ -208,13 +199,15 @@
                                             $('.checkboxGroups').attr('checked', false).change();
                                             selectedIds = [];
                                         },
-                                        error: function(xhr, ajaxOptions, thrownError) {
-                                            alert(thrownError);
+                                        error: function (xhr, ajaxOptions, thrownError) {
+                                            $('#deleteSelectedFailed-info').html(thrownError);
+                                            $("#deleteSelectedFailed").click();
                                         },
                                         traditional: true
                                     });
+                                    $('#delete-selected-action-confirmation').modal('toggle');
                                     return false;
-                                });
+                                }); 
 
                                 $('#mastercheckbox').click(function() {
                                     $('.checkboxGroups').attr('checked', $(this).is(':checked')).change();
@@ -262,3 +255,4 @@
         </div>
     </div>
 </form>
+<nop-alert asp-alert-id="deleteSelectedFailed" />

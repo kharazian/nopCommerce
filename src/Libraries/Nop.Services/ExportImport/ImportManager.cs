@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.Extensions.DependencyInjection;
 using Nop.Core;
 using Nop.Core.Data;
 using Nop.Core.Domain.Catalog;
@@ -12,6 +14,7 @@ using Nop.Core.Domain.Messages;
 using Nop.Core.Domain.Shipping;
 using Nop.Core.Domain.Tax;
 using Nop.Core.Domain.Vendors;
+using Nop.Core.Infrastructure;
 using Nop.Services.Catalog;
 using Nop.Services.Directory;
 using Nop.Services.ExportImport.Help;
@@ -23,13 +26,10 @@ using Nop.Services.Security;
 using Nop.Services.Seo;
 using Nop.Services.Shipping;
 using Nop.Services.Shipping.Date;
+using Nop.Services.Stores;
 using Nop.Services.Tax;
 using Nop.Services.Vendors;
 using OfficeOpenXml;
-using System.Net;
-using Microsoft.Extensions.DependencyInjection;
-using Nop.Services.Stores;
-using Nop.Core.Infrastructure;
 
 namespace Nop.Services.ExportImport
 {
@@ -49,102 +49,105 @@ namespace Nop.Services.ExportImport
 
         #region Fields
 
-        private readonly IServiceScopeFactory _serviceScopeFactory;
-        private readonly IProductService _productService;
-        private readonly IProductAttributeService _productAttributeService;
-        private readonly ICategoryService _categoryService;
-        private readonly IManufacturerService _manufacturerService;
-        private readonly IPictureService _pictureService;
-        private readonly IUrlRecordService _urlRecordService;
-        private readonly IStoreContext _storeContext;
-        private readonly INewsLetterSubscriptionService _newsLetterSubscriptionService;
-        private readonly ICountryService _countryService;
-        private readonly IStateProvinceService _stateProvinceService;
-        private readonly IEncryptionService _encryptionService;
-        private readonly IDataProvider _dataProvider;
-        private readonly MediaSettings _mediaSettings;
-        private readonly IVendorService _vendorService;
-        private readonly IProductTemplateService _productTemplateService;
-        private readonly IShippingService _shippingService;
-        private readonly IDateRangeService _dateRangeService;
-        private readonly ITaxCategoryService _taxCategoryService;
-        private readonly IMeasureService _measureService;
         private readonly CatalogSettings _catalogSettings;
-        private readonly IProductTagService _productTagService;
-        private readonly IWorkContext _workContext;
-        private readonly ILocalizationService _localizationService;
+        private readonly ICategoryService _categoryService;
+        private readonly ICountryService _countryService;
         private readonly ICustomerActivityService _customerActivityService;
-        private readonly VendorSettings _vendorSettings;
-        private readonly ISpecificationAttributeService _specificationAttributeService;
+        private readonly IDataProvider _dataProvider;
+        private readonly IDateRangeService _dateRangeService;
+        private readonly IEncryptionService _encryptionService;
+        private readonly ILocalizationService _localizationService;
         private readonly ILogger _logger;
-        private readonly IStoreMappingService _storeMappingService;
+        private readonly IManufacturerService _manufacturerService;
+        private readonly IMeasureService _measureService;
+        private readonly INewsLetterSubscriptionService _newsLetterSubscriptionService;
         private readonly INopFileProvider _fileProvider;
+        private readonly IPictureService _pictureService;
+        private readonly IProductAttributeService _productAttributeService;
+        private readonly IProductService _productService;
+        private readonly IProductTagService _productTagService;
+        private readonly IProductTemplateService _productTemplateService;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly IShippingService _shippingService;
+        private readonly ISpecificationAttributeService _specificationAttributeService;
+        private readonly IStateProvinceService _stateProvinceService;
+        private readonly IStoreContext _storeContext;
+        private readonly IStoreMappingService _storeMappingService;
+        private readonly IStoreService _storeService;
+        private readonly ITaxCategoryService _taxCategoryService;
+        private readonly IUrlRecordService _urlRecordService;
+        private readonly IVendorService _vendorService;
+        private readonly IWorkContext _workContext;
+        private readonly MediaSettings _mediaSettings;
+        private readonly VendorSettings _vendorSettings;
 
         #endregion
 
         #region Ctor
 
-        public ImportManager(IProductService productService,
+        public ImportManager(CatalogSettings catalogSettings,
             ICategoryService categoryService,
-            IManufacturerService manufacturerService,
-            IPictureService pictureService,
-            IUrlRecordService urlRecordService,
-            IStoreContext storeContext,
-            INewsLetterSubscriptionService newsLetterSubscriptionService,
             ICountryService countryService,
-            IStateProvinceService stateProvinceService,
-            IEncryptionService encryptionService,
-            IDataProvider dataProvider,
-            MediaSettings mediaSettings,
-            IVendorService vendorService,
-            IProductTemplateService productTemplateService,
-            IShippingService shippingService,
-            IDateRangeService dateRangeService,
-            ITaxCategoryService taxCategoryService,
-            IMeasureService measureService,
-            IProductAttributeService productAttributeService,
-            CatalogSettings catalogSettings,
-            IProductTagService productTagService,
-            IWorkContext workContext,
-            ILocalizationService localizationService,
             ICustomerActivityService customerActivityService,
-            VendorSettings vendorSettings,
-            ISpecificationAttributeService specificationAttributeService,
+            IDataProvider dataProvider,
+            IDateRangeService dateRangeService,
+            IEncryptionService encryptionService,
+            ILocalizationService localizationService,
             ILogger logger,
+            IManufacturerService manufacturerService,
+            IMeasureService measureService,
+            INewsLetterSubscriptionService newsLetterSubscriptionService,
+            INopFileProvider fileProvider,
+            IPictureService pictureService,
+            IProductAttributeService productAttributeService,
+            IProductService productService,
+            IProductTagService productTagService,
+            IProductTemplateService productTemplateService,
             IServiceScopeFactory serviceScopeFactory,
+            IShippingService shippingService,
+            ISpecificationAttributeService specificationAttributeService,
+            IStateProvinceService stateProvinceService,
+            IStoreContext storeContext,
             IStoreMappingService storeMappingService,
-            INopFileProvider fileProvider)
+            IStoreService storeService,
+            ITaxCategoryService taxCategoryService,
+            IUrlRecordService urlRecordService,
+            IVendorService vendorService,
+            IWorkContext workContext,
+            MediaSettings mediaSettings,
+            VendorSettings vendorSettings)
         {
-            this._productService = productService;
-            this._categoryService = categoryService;
-            this._manufacturerService = manufacturerService;
-            this._pictureService = pictureService;
-            this._urlRecordService = urlRecordService;
-            this._storeContext = storeContext;
-            this._newsLetterSubscriptionService = newsLetterSubscriptionService;
-            this._countryService = countryService;
-            this._stateProvinceService = stateProvinceService;
-            this._encryptionService = encryptionService;
-            this._dataProvider = dataProvider;
-            this._mediaSettings = mediaSettings;
-            this._vendorService = vendorService;
-            this._productTemplateService = productTemplateService;
-            this._shippingService = shippingService;
-            this._dateRangeService = dateRangeService;
-            this._taxCategoryService = taxCategoryService;
-            this._measureService = measureService;
-            this._productAttributeService = productAttributeService;
             this._catalogSettings = catalogSettings;
-            this._productTagService = productTagService;
-            this._workContext = workContext;
-            this._localizationService = localizationService;
+            this._categoryService = categoryService;
+            this._countryService = countryService;
             this._customerActivityService = customerActivityService;
-            this._vendorSettings = vendorSettings;
-            this._specificationAttributeService = specificationAttributeService;
-            this._logger = logger;
-            this._serviceScopeFactory = serviceScopeFactory;
-            this._storeMappingService = storeMappingService;
+            this._dataProvider = dataProvider;
+            this._dateRangeService = dateRangeService;
+            this._encryptionService = encryptionService;
             this._fileProvider = fileProvider;
+            this._localizationService = localizationService;
+            this._logger = logger;
+            this._manufacturerService = manufacturerService;
+            this._measureService = measureService;
+            this._newsLetterSubscriptionService = newsLetterSubscriptionService;
+            this._pictureService = pictureService;
+            this._productAttributeService = productAttributeService;
+            this._productService = productService;
+            this._productTagService = productTagService;
+            this._productTemplateService = productTemplateService;
+            this._serviceScopeFactory = serviceScopeFactory;
+            this._shippingService = shippingService;
+            this._specificationAttributeService = specificationAttributeService;
+            this._stateProvinceService = stateProvinceService;
+            this._storeContext = storeContext;
+            this._storeMappingService = storeMappingService;
+            this._storeService = storeService;
+            this._taxCategoryService = taxCategoryService;
+            this._urlRecordService = urlRecordService;
+            this._vendorService = vendorService;
+            this._workContext = workContext;
+            this._mediaSettings = mediaSettings;
+            this._vendorSettings = vendorSettings;
         }
 
         #endregion
@@ -183,6 +186,38 @@ namespace Nop.Services.ExportImport
                 if (SpecificationAttributeType.Option.ToSelectList(useLocalization: false)
                     .Any(p => p.Text.Equals(attributeType, StringComparison.InvariantCultureIgnoreCase)))
                     worksheet.Row(endRow).OutlineLevel = 1;
+                else if (int.TryParse(attributeType, out var attributeTypeId) && Enum.IsDefined(typeof(SpecificationAttributeType), attributeTypeId))
+                    worksheet.Row(endRow).OutlineLevel = 1;
+            }
+        }
+
+        private static void CopyDataToNewFile(ImportProductMetadata metadata, ExcelWorksheet worksheet, string filePath, int startRow, int endRow, int endCell)
+        {
+            using (var stream = new FileStream(filePath, FileMode.OpenOrCreate))
+            {
+                // ok, we can run the real code of the sample now
+                using (var xlPackage = new ExcelPackage(stream))
+                {
+                    // uncomment this line if you want the XML written out to the outputDir
+                    //xlPackage.DebugMode = true; 
+
+                    // get handles to the worksheets
+                    var outWorksheet = xlPackage.Workbook.Worksheets.Add(typeof(Product).Name);
+                    metadata.Manager.WriteCaption(outWorksheet);
+                    var outRow = 2;
+                    for (var row = startRow; row <= endRow; row++)
+                    {
+                        outWorksheet.Row(outRow).OutlineLevel = worksheet.Row(row).OutlineLevel;
+                        for (var cell = 1; cell <= endCell; cell++)
+                        {
+                            outWorksheet.Cells[outRow, cell].Value = worksheet.Cells[row, cell].Value;
+                        }
+
+                        outRow += 1;
+                    }
+
+                    xlPackage.Save();
+                }
             }
         }
 
@@ -200,22 +235,12 @@ namespace Nop.Services.ExportImport
             return 0;
         }
 
-        protected virtual string ConvertColumnToString(object columnValue)
-        {
-            if (columnValue == null)
-                return null;
-
-            return Convert.ToString(columnValue);
-        }
-
         protected virtual string GetMimeTypeFromFilePath(string filePath)
         {
-            //TODO test ne implementation
-            new FileExtensionContentTypeProvider().TryGetContentType(filePath, out string mimeType);
+            new FileExtensionContentTypeProvider().TryGetContentType(filePath, out var mimeType);
+            
             //set to jpeg in case mime type cannot be found
-            if (mimeType == null)
-                mimeType = MimeTypes.ImageJpeg;
-            return mimeType;
+            return mimeType ?? MimeTypes.ImageJpeg;
         }
 
         /// <summary>
@@ -308,7 +333,7 @@ namespace Nop.Services.ExportImport
                             //pictures are duplicated
                             //maybe because entity size is too large
                             PictureId = newPicture.Id,
-                            DisplayOrder = 1,
+                            DisplayOrder = 1
                         });
                         _productService.UpdateProduct(product.ProductItem);
                     }
@@ -324,7 +349,7 @@ namespace Nop.Services.ExportImport
         {
             //performance optimization, load all pictures hashes
             //it will only be used if the images are stored in the SQL Server database (not compact)
-            var takeCount = _dataProvider.SupportedLengthOfBinaryHash() - 1;
+            var takeCount = _dataProvider.SupportedLengthOfBinaryHash - 1;
             var productsImagesIds = _productService.GetProductsImagesIds(allProductsBySku.Select(p => p.Id).ToArray());
             var allPicturesHashes = _pictureService.GetPicturesHash(productsImagesIds.SelectMany(p => p.Value).ToArray());
 
@@ -365,7 +390,7 @@ namespace Nop.Services.ExportImport
                             //pictures are duplicated
                             //maybe because entity size is too large
                             PictureId = newPicture.Id,
-                            DisplayOrder = 1,
+                            DisplayOrder = 1
                         });
                         _productService.UpdateProduct(product.ProductItem);
                     }
@@ -415,6 +440,7 @@ namespace Nop.Services.ExportImport
 
                             category.ParentCategoryId = parentCategory?.Id ?? property.IntValue;
                         }
+
                         break;
                     case "ParentCategoryName":
                         if (_catalogSettings.ExportImportCategoriesUsingCategoryName && !isParentCategorySet)
@@ -439,6 +465,7 @@ namespace Nop.Services.ExportImport
                                 }
                             }
                         }
+
                         break;
                     case "Picture":
                         var picture = LoadPicture(manager.GetProperty("Picture").StringValue, category.Name, isNew ? null : (int?)category.PictureId);
@@ -516,9 +543,7 @@ namespace Nop.Services.ExportImport
                 category.AllowCustomersToSelectPageSize = true;
             }
             else
-            {
-                curentCategoryBreadCrumb = category.GetFormattedBreadCrumb(_categoryService);
-            }
+                curentCategoryBreadCrumb = _categoryService.GetFormattedBreadCrumb(category);
 
             return category;
         }
@@ -530,7 +555,7 @@ namespace Nop.Services.ExportImport
             else
                 _categoryService.UpdateCategory(category);
 
-            var categoryBreadCrumb = category.GetFormattedBreadCrumb(_categoryService);
+            var categoryBreadCrumb = _categoryService.GetFormattedBreadCrumb(category);
             if (!allCategories.ContainsKey(categoryBreadCrumb))
                 allCategories.Add(categoryBreadCrumb, category);
             if (!string.IsNullOrEmpty(curentCategoryBreadCrumb) && allCategories.ContainsKey(curentCategoryBreadCrumb) &&
@@ -539,7 +564,7 @@ namespace Nop.Services.ExportImport
 
             //search engine name
             if (setSeName)
-                _urlRecordService.SaveSlug(category, category.ValidateSeName(seName, category.Name, true), 0);
+                _urlRecordService.SaveSlug(category, _urlRecordService.ValidateSeName(category, seName, category.Name, true), 0);
         }
 
         protected virtual void SetOutLineForProductAttributeRow(object cellValue, ExcelWorksheet worksheet, int endRow)
@@ -670,7 +695,7 @@ namespace Nop.Services.ExportImport
                 _productAttributeService.UpdateProductAttributeValue(pav);
             }
         }
-
+        
         private void ImportSpecificationAttribute(PropertyManager<ExportSpecificationAttribute> specificationAttributeManager, Product lastLoadedProduct)
         {
             if (!_catalogSettings.ExportImportProductSpecificationAttributes || lastLoadedProduct == null || specificationAttributeManager.IsCaption)
@@ -769,6 +794,7 @@ namespace Nop.Services.ExportImport
                 {
                     fileData = client.DownloadData(urlString);
                 }
+
                 using (var fs = new FileStream(filePath, FileMode.OpenOrCreate))
                 {
                     fs.Write(fileData, 0, fileData.Length);
@@ -790,25 +816,19 @@ namespace Nop.Services.ExportImport
             //the columns
             var properties = GetPropertiesByExcelCells<Product>(worksheet);
 
-            var manager = new PropertyManager<Product>(properties);
+            var manager = new PropertyManager<Product>(properties, _catalogSettings);
 
-            var attributProperties = new[]
+            var productAttributeProperties = new[]
             {
                 new PropertyByName<ExportProductAttribute>("AttributeId"),
                 new PropertyByName<ExportProductAttribute>("AttributeName"),
                 new PropertyByName<ExportProductAttribute>("AttributeTextPrompt"),
                 new PropertyByName<ExportProductAttribute>("AttributeIsRequired"),
-                new PropertyByName<ExportProductAttribute>("AttributeControlType")
-                {
-                    DropDownElements = AttributeControlType.TextBox.ToSelectList(useLocalization: false)
-                },
+                new PropertyByName<ExportProductAttribute>("AttributeControlType"),
                 new PropertyByName<ExportProductAttribute>("AttributeDisplayOrder"),
                 new PropertyByName<ExportProductAttribute>("ProductAttributeValueId"),
                 new PropertyByName<ExportProductAttribute>("ValueName"),
-                new PropertyByName<ExportProductAttribute>("AttributeValueType")
-                {
-                    DropDownElements = AttributeValueType.Simple.ToSelectList(useLocalization: false)
-                },
+                new PropertyByName<ExportProductAttribute>("AttributeValueType"),
                 new PropertyByName<ExportProductAttribute>("AssociatedProductId"),
                 new PropertyByName<ExportProductAttribute>("ColorSquaresRgb"),
                 new PropertyByName<ExportProductAttribute>("ImageSquaresPictureId"),
@@ -823,33 +843,23 @@ namespace Nop.Services.ExportImport
                 new PropertyByName<ExportProductAttribute>("PictureId")
             };
 
-            var productAttributeManager = new PropertyManager<ExportProductAttribute>(attributProperties);
+            var productAttributeManager = new PropertyManager<ExportProductAttribute>(productAttributeProperties, _catalogSettings);
 
-            var attributeProperties = new[]
+            var specificationAttributeProperties = new[]
             {
-                new PropertyByName<ExportSpecificationAttribute>("AttributeType", p => p.AttributeTypeId)
-                {
-                    DropDownElements = SpecificationAttributeType.Option.ToSelectList(useLocalization: false)
-                },
-                new PropertyByName<ExportSpecificationAttribute>("SpecificationAttribute",
-                    p => p.SpecificationAttributeId)
-                {
-                    DropDownElements = _specificationAttributeService.GetSpecificationAttributes()
-                        .Select(sa => sa as BaseEntity)
-                        .ToSelectList(p => (p as SpecificationAttribute)?.Name ?? string.Empty)
-                },
+                new PropertyByName<ExportSpecificationAttribute>("AttributeType", p => p.AttributeTypeId),
+                new PropertyByName<ExportSpecificationAttribute>("SpecificationAttribute", p => p.SpecificationAttributeId),
                 new PropertyByName<ExportSpecificationAttribute>("CustomValue", p => p.CustomValue),
-                new PropertyByName<ExportSpecificationAttribute>("SpecificationAttributeOptionId",
-                    p => p.SpecificationAttributeOptionId),
+                new PropertyByName<ExportSpecificationAttribute>("SpecificationAttributeOptionId", p => p.SpecificationAttributeOptionId),
                 new PropertyByName<ExportSpecificationAttribute>("AllowFiltering", p => p.AllowFiltering),
                 new PropertyByName<ExportSpecificationAttribute>("ShowOnProductPage", p => p.ShowOnProductPage),
                 new PropertyByName<ExportSpecificationAttribute>("DisplayOrder", p => p.DisplayOrder)
             };
 
-            var specificationAttributeManager = new PropertyManager<ExportSpecificationAttribute>(attributeProperties);
+            var specificationAttributeManager = new PropertyManager<ExportSpecificationAttribute>(specificationAttributeProperties, _catalogSettings);
 
             var endRow = 2;
-            var allCategoriesNames = new List<string>();
+            var allCategories = new List<string>();
             var allSku = new List<string>();
 
             var tempProperty = manager.GetProperty("Categories");
@@ -858,43 +868,60 @@ namespace Nop.Services.ExportImport
             tempProperty = manager.GetProperty("SKU");
             var skuCellNum = tempProperty?.PropertyOrderPosition ?? -1;
 
-            var allManufacturersNames = new List<string>();
+            var allManufacturers = new List<string>();
             tempProperty = manager.GetProperty("Manufacturers");
             var manufacturerCellNum = tempProperty?.PropertyOrderPosition ?? -1;
 
-            manager.SetSelectList("ProductType", ProductType.SimpleProduct.ToSelectList(useLocalization: false));
-            manager.SetSelectList("GiftCardType", GiftCardType.Virtual.ToSelectList(useLocalization: false));
-            manager.SetSelectList("DownloadActivationType",
-                DownloadActivationType.Manually.ToSelectList(useLocalization: false));
-            manager.SetSelectList("ManageInventoryMethod",
-                ManageInventoryMethod.DontManageStock.ToSelectList(useLocalization: false));
-            manager.SetSelectList("LowStockActivity", LowStockActivity.Nothing.ToSelectList(useLocalization: false));
-            manager.SetSelectList("BackorderMode", BackorderMode.NoBackorders.ToSelectList(useLocalization: false));
-            manager.SetSelectList("RecurringCyclePeriod",
-                RecurringProductCyclePeriod.Days.ToSelectList(useLocalization: false));
-            manager.SetSelectList("RentalPricePeriod", RentalPricePeriod.Days.ToSelectList(useLocalization: false));
+            var allStores = new List<string>();
+            tempProperty = manager.GetProperty("LimitedToStores");
+            var limitedToStoresCellNum = tempProperty?.PropertyOrderPosition ?? -1;
 
-            manager.SetSelectList("Vendor",
-                _vendorService.GetAllVendors(showHidden: true).Select(v => v as BaseEntity)
-                    .ToSelectList(p => (p as Vendor)?.Name ?? string.Empty));
-            manager.SetSelectList("ProductTemplate",
-                _productTemplateService.GetAllProductTemplates().Select(pt => pt as BaseEntity)
-                    .ToSelectList(p => (p as ProductTemplate)?.Name ?? string.Empty));
-            manager.SetSelectList("DeliveryDate",
-                _dateRangeService.GetAllDeliveryDates().Select(dd => dd as BaseEntity)
-                    .ToSelectList(p => (p as DeliveryDate)?.Name ?? string.Empty));
-            manager.SetSelectList("ProductAvailabilityRange",
-                _dateRangeService.GetAllProductAvailabilityRanges().Select(range => range as BaseEntity)
-                    .ToSelectList(p => (p as ProductAvailabilityRange)?.Name ?? string.Empty));
-            manager.SetSelectList("TaxCategory",
-                _taxCategoryService.GetAllTaxCategories().Select(tc => tc as BaseEntity)
-                    .ToSelectList(p => (p as TaxCategory)?.Name ?? string.Empty));
-            manager.SetSelectList("BasepriceUnit",
-                _measureService.GetAllMeasureWeights().Select(mw => mw as BaseEntity)
-                    .ToSelectList(p => (p as MeasureWeight)?.Name ?? string.Empty));
-            manager.SetSelectList("BasepriceBaseUnit",
-                _measureService.GetAllMeasureWeights().Select(mw => mw as BaseEntity)
-                    .ToSelectList(p => (p as MeasureWeight)?.Name ?? string.Empty));
+            if (_catalogSettings.ExportImportUseDropdownlistsForAssociatedEntities)
+            {
+                productAttributeManager.SetSelectList("AttributeControlType", AttributeControlType.TextBox.ToSelectList(useLocalization: false));
+                productAttributeManager.SetSelectList("AttributeValueType", AttributeValueType.Simple.ToSelectList(useLocalization: false));
+
+                specificationAttributeManager.SetSelectList("AttributeType", SpecificationAttributeType.Option.ToSelectList(useLocalization: false));
+                specificationAttributeManager.SetSelectList("SpecificationAttribute", _specificationAttributeService
+                    .GetSpecificationAttributes()
+                    .Select(sa => sa as BaseEntity)
+                    .ToSelectList(p => (p as SpecificationAttribute)?.Name ?? string.Empty));
+
+                manager.SetSelectList("ProductType", ProductType.SimpleProduct.ToSelectList(useLocalization: false));
+                manager.SetSelectList("GiftCardType", GiftCardType.Virtual.ToSelectList(useLocalization: false));
+                manager.SetSelectList("DownloadActivationType",
+                    DownloadActivationType.Manually.ToSelectList(useLocalization: false));
+                manager.SetSelectList("ManageInventoryMethod",
+                    ManageInventoryMethod.DontManageStock.ToSelectList(useLocalization: false));
+                manager.SetSelectList("LowStockActivity",
+                    LowStockActivity.Nothing.ToSelectList(useLocalization: false));
+                manager.SetSelectList("BackorderMode", BackorderMode.NoBackorders.ToSelectList(useLocalization: false));
+                manager.SetSelectList("RecurringCyclePeriod",
+                    RecurringProductCyclePeriod.Days.ToSelectList(useLocalization: false));
+                manager.SetSelectList("RentalPricePeriod", RentalPricePeriod.Days.ToSelectList(useLocalization: false));
+
+                manager.SetSelectList("Vendor",
+                    _vendorService.GetAllVendors(showHidden: true).Select(v => v as BaseEntity)
+                        .ToSelectList(p => (p as Vendor)?.Name ?? string.Empty));
+                manager.SetSelectList("ProductTemplate",
+                    _productTemplateService.GetAllProductTemplates().Select(pt => pt as BaseEntity)
+                        .ToSelectList(p => (p as ProductTemplate)?.Name ?? string.Empty));
+                manager.SetSelectList("DeliveryDate",
+                    _dateRangeService.GetAllDeliveryDates().Select(dd => dd as BaseEntity)
+                        .ToSelectList(p => (p as DeliveryDate)?.Name ?? string.Empty));
+                manager.SetSelectList("ProductAvailabilityRange",
+                    _dateRangeService.GetAllProductAvailabilityRanges().Select(range => range as BaseEntity)
+                        .ToSelectList(p => (p as ProductAvailabilityRange)?.Name ?? string.Empty));
+                manager.SetSelectList("TaxCategory",
+                    _taxCategoryService.GetAllTaxCategories().Select(tc => tc as BaseEntity)
+                        .ToSelectList(p => (p as TaxCategory)?.Name ?? string.Empty));
+                manager.SetSelectList("BasepriceUnit",
+                    _measureService.GetAllMeasureWeights().Select(mw => mw as BaseEntity)
+                        .ToSelectList(p => (p as MeasureWeight)?.Name ?? string.Empty));
+                manager.SetSelectList("BasepriceBaseUnit",
+                    _measureService.GetAllMeasureWeights().Select(mw => mw as BaseEntity)
+                        .ToSelectList(p => (p as MeasureWeight)?.Name ?? string.Empty));
+            }
 
             var allAttributeIds = new List<int>();
             var allSpecificationAttributeOptionIds = new List<int>();
@@ -907,6 +934,7 @@ namespace Nop.Services.ExportImport
             var productsInFile = new List<int>();
 
             //find end of data
+            var typeOfExportedAttribute = ExportedAttributeType.NotSpecified;
             while (true)
             {
                 var allColumnsAreEmpty = manager.GetProperties
@@ -927,28 +955,36 @@ namespace Nop.Services.ExportImport
 
                 if (worksheet.Row(endRow).OutlineLevel != 0)
                 {
-                    productAttributeManager.ReadFromXlsx(worksheet, endRow,
-                        ExportProductAttribute.ProducAttributeCellOffset);
-                    if (!productAttributeManager.IsCaption)
-                    {
-                        if (int.TryParse((worksheet.Cells[endRow, attributeIdCellNum].Value ?? string.Empty).ToString(),
-                            out int aid))
-                        {
-                            allAttributeIds.Add(aid);
-                        }
-                        else
-                        {
-                            specificationAttributeManager.ReadFromXlsx(worksheet, endRow,
-                                ExportProductAttribute.ProducAttributeCellOffset);
+                    var newTypeOfExportedAttribute = GetTypeOfExportedAttribute(worksheet, productAttributeManager, specificationAttributeManager, endRow);
 
-                            if (!specificationAttributeManager.IsCaption &&
-                                int.TryParse(
-                                    (worksheet.Cells[endRow, specificationAttributeOptionIdCellNum].Value ??
-                                     string.Empty).ToString(), out int saoid))
+                    //skip caption row
+                    if (newTypeOfExportedAttribute != ExportedAttributeType.NotSpecified && newTypeOfExportedAttribute != typeOfExportedAttribute)
+                    {
+                        typeOfExportedAttribute = newTypeOfExportedAttribute;
+                        endRow++;
+                        continue;
+                    }
+
+                    switch (typeOfExportedAttribute)
+                    {
+                        case ExportedAttributeType.ProductAttribute:
+                            productAttributeManager.ReadFromXlsx(worksheet, endRow,
+                                ExportProductAttribute.ProducAttributeCellOffset);
+                            if (int.TryParse((worksheet.Cells[endRow, attributeIdCellNum].Value ?? string.Empty).ToString(), out var aid))
+                            {
+                                allAttributeIds.Add(aid);
+                            }
+
+                            break;
+                        case ExportedAttributeType.SpecificationAttribute:
+                            specificationAttributeManager.ReadFromXlsx(worksheet, endRow, ExportProductAttribute.ProducAttributeCellOffset);
+
+                            if (int.TryParse((worksheet.Cells[endRow, specificationAttributeOptionIdCellNum].Value ?? string.Empty).ToString(), out var saoid))
                             {
                                 allSpecificationAttributeOptionIds.Add(saoid);
                             }
-                        }
+
+                            break;
                     }
 
                     endRow++;
@@ -960,7 +996,7 @@ namespace Nop.Services.ExportImport
                     var categoryIds = worksheet.Cells[endRow, categoryCellNum].Value?.ToString() ?? string.Empty;
 
                     if (!string.IsNullOrEmpty(categoryIds))
-                        allCategoriesNames.AddRange(categoryIds
+                        allCategories.AddRange(categoryIds
                             .Split(new[] { ";", ">>" }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim())
                             .Distinct());
                 }
@@ -978,7 +1014,16 @@ namespace Nop.Services.ExportImport
                     var manufacturerIds = worksheet.Cells[endRow, manufacturerCellNum].Value?.ToString() ??
                                           string.Empty;
                     if (!string.IsNullOrEmpty(manufacturerIds))
-                        allManufacturersNames.AddRange(manufacturerIds
+                        allManufacturers.AddRange(manufacturerIds
+                            .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()));
+                }
+
+                if (limitedToStoresCellNum > 0)
+                {
+                    var storeIds = worksheet.Cells[endRow, limitedToStoresCellNum].Value?.ToString() ??
+                                          string.Empty;
+                    if (!string.IsNullOrEmpty(storeIds))
+                        allStores.AddRange(storeIds
                             .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => x.Trim()));
                 }
 
@@ -989,14 +1034,14 @@ namespace Nop.Services.ExportImport
             }
 
             //performance optimization, the check for the existence of the categories in one SQL request
-            var notExistingCategories = _categoryService.GetNotExistingCategories(allCategoriesNames.ToArray());
+            var notExistingCategories = _categoryService.GetNotExistingCategories(allCategories.ToArray());
             if (notExistingCategories.Any())
             {
                 throw new ArgumentException(string.Format(_localizationService.GetResource("Admin.Catalog.Products.Import.CategoriesDontExist"), string.Join(", ", notExistingCategories)));
             }
 
             //performance optimization, the check for the existence of the manufacturers in one SQL request
-            var notExistingManufacturers = _manufacturerService.GetNotExistingManufacturers(allManufacturersNames.ToArray());
+            var notExistingManufacturers = _manufacturerService.GetNotExistingManufacturers(allManufacturers.ToArray());
             if (notExistingManufacturers.Any())
             {
                 throw new ArgumentException(string.Format(_localizationService.GetResource("Admin.Catalog.Products.Import.ManufacturersDontExist"), string.Join(", ", notExistingManufacturers)));
@@ -1016,6 +1061,13 @@ namespace Nop.Services.ExportImport
                 throw new ArgumentException($"The following specification attribute option ID(s) don't exist - {string.Join(", ", notExistingSpecificationAttributeOptions)}");
             }
 
+            //performance optimization, the check for the existence of the stores in one SQL request
+            var notExistingStores = _storeService.GetNotExistingStores(allStores.ToArray());
+            if (notExistingStores.Any())
+            {
+                throw new ArgumentException(string.Format(_localizationService.GetResource("Admin.Catalog.Products.Import.StoresDontExist"), string.Join(", ", notExistingStores)));
+            }
+
             return new ImportProductMetadata
             {
                 EndRow = endRow,
@@ -1025,11 +1077,7 @@ namespace Nop.Services.ExportImport
                 ProductAttributeManager = productAttributeManager,
                 SpecificationAttributeManager = specificationAttributeManager,
                 SkuCellNum = skuCellNum,
-                AllSku = allSku,
-                AllCategoriesNames = allCategoriesNames,
-                AllManufacturersNames = allManufacturersNames,
-                AllAttributeIds = allAttributeIds,
-                AllSpecificationAttributeOptionIds = allSpecificationAttributeOptionIds
+                AllSku = allSku
             };
         }
 
@@ -1054,7 +1102,7 @@ namespace Nop.Services.ExportImport
                 }
                 catch
                 {
-
+                    // ignored
                 }
             }
         }
@@ -1091,36 +1139,6 @@ namespace Nop.Services.ExportImport
             return filePaths;
         }
 
-        private static void CopyDataToNewFile(ImportProductMetadata metadata, ExcelWorksheet worksheet, string filePath, int startRow, int endRow, int endCell)
-        {
-            using (var stream = new FileStream(filePath, FileMode.OpenOrCreate))
-            {
-                // ok, we can run the real code of the sample now
-                using (var xlPackage = new ExcelPackage(stream))
-                {
-                    // uncomment this line if you want the XML written out to the outputDir
-                    //xlPackage.DebugMode = true; 
-
-                    // get handles to the worksheets
-                    var outWorksheet = xlPackage.Workbook.Worksheets.Add(typeof(Product).Name);
-                    metadata.Manager.WriteCaption(outWorksheet, style => style.Hidden = false);
-                    var outRow = 2;
-                    for (var row = startRow; row <= endRow; row++)
-                    {
-                        outWorksheet.Row(outRow).OutlineLevel = worksheet.Row(row).OutlineLevel;
-                        for (var cell = 1; cell <= endCell; cell++)
-                        {
-                            outWorksheet.Cells[outRow, cell].Value = worksheet.Cells[row, cell].Value;
-                        }
-
-                        outRow += 1;
-                    }
-
-                    xlPackage.Save();
-                }
-            }
-        }
-       
         #endregion
 
         #region Methods
@@ -1155,7 +1173,7 @@ namespace Nop.Services.ExportImport
 
             return properties;
         }
-        
+
         /// <summary>
         /// Import products from XLSX file
         /// </summary>
@@ -1168,7 +1186,7 @@ namespace Nop.Services.ExportImport
                 var worksheet = xlPackage.Workbook.Worksheets.FirstOrDefault();
                 if (worksheet == null)
                     throw new NopException("No worksheet found");
-                
+
                 var downloadedFiles = new List<string>();
 
                 var metadata = PrepareImportProductData(worksheet);
@@ -1198,9 +1216,10 @@ namespace Nop.Services.ExportImport
                 Dictionary<CategoryKey, Category> allCategories;
                 try
                 {
-                    allCategories = _categoryService
-                        .GetAllCategories(showHidden: true, loadCacheableCopy: false)
-                        .ToDictionary(c => new CategoryKey(c, _categoryService, _storeMappingService), c => c);
+                    var allCategoryList = _categoryService.GetAllCategories(showHidden: true, loadCacheableCopy: false);
+                    
+                    allCategories = allCategoryList
+                        .ToDictionary(c => new CategoryKey(c, _categoryService, allCategoryList, _storeMappingService), c => c);
                 }
                 catch (ArgumentException)
                 {
@@ -1213,6 +1232,9 @@ namespace Nop.Services.ExportImport
 
                 //performance optimization, load all manufacturers in one SQL request
                 var allManufacturers = _manufacturerService.GetAllManufacturers(showHidden: true);
+
+                //performance optimization, load all stores in one SQL request
+                var allStores = _storeService.GetAllStores();
 
                 //product to import images
                 var productPictureMetadata = new List<ProductPictureMetadata>();
@@ -1538,10 +1560,13 @@ namespace Nop.Services.ExportImport
                             case "Height":
                                 product.Height = property.DecimalValue;
                                 break;
+                            case "IsLimitedToStores":
+                                product.LimitedToStores = property.BooleanValue;
+                                break;
                         }
                     }
 
-                    //set some default default values if not specified
+                    //set some default values if not specified
                     if (isNew && metadata.Properties.All(p => p.PropertyName != "ProductType"))
                         product.ProductType = ProductType.SimpleProduct;
                     if (isNew && metadata.Properties.All(p => p.PropertyName != "VisibleIndividually"))
@@ -1602,20 +1627,38 @@ namespace Nop.Services.ExportImport
                     {
                         var seName = tempProperty.StringValue;
                         //search engine name
-                        _urlRecordService.SaveSlug(product, product.ValidateSeName(seName, product.Name, true), 0);
+                        _urlRecordService.SaveSlug(product, _urlRecordService.ValidateSeName(product, seName, product.Name, true), 0);
                     }
 
                     tempProperty = metadata.Manager.GetProperty("Categories");
 
                     if (tempProperty != null)
                     {
-                        var categoryNames = tempProperty.StringValue;
+                        var categoryList = tempProperty.StringValue;
 
                         //category mappings
                         var categories = isNew || !allProductsCategoryIds.ContainsKey(product.Id) ? new int[0] : allProductsCategoryIds[product.Id];
-                        var importedCategories = categoryNames.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+
+                        var importedCategories = categoryList.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
                             .Select(categoryName => new CategoryKey(categoryName))
-                            .Select(categoryKey => allCategories.ContainsKey(categoryKey) ? allCategories[categoryKey].Id : allCategories.Values.First(c => c.Name == categoryKey.Key).Id).ToList();
+                            .Select(categoryKey =>
+                            {
+                                var rez = allCategories.ContainsKey(categoryKey) ? allCategories[categoryKey].Id : allCategories.Values.FirstOrDefault(c => c.Name == categoryKey.Key)?.Id;
+
+                                if (!rez.HasValue && int.TryParse(categoryKey.Key, out var id))
+                                {
+                                    rez = id;
+                                }
+                                
+                                if(!rez.HasValue)
+                                {
+                                    //database doesn't contain the imported category
+                                    throw new ArgumentException(string.Format(_localizationService.GetResource("Admin.Catalog.Products.Import.DatabaseNotContainCategory"), categoryKey.Key));
+                                }
+
+                                return rez.Value;
+                            }).ToList();
+
                         foreach (var categoryId in importedCategories)
                         {
                             if (categories.Any(c => c == categoryId))
@@ -1643,11 +1686,12 @@ namespace Nop.Services.ExportImport
                     tempProperty = metadata.Manager.GetProperty("Manufacturers");
                     if (tempProperty != null)
                     {
-                        var manufacturerNames = tempProperty.StringValue;
+                        var manufacturerList = tempProperty.StringValue;
 
                         //manufacturer mappings
                         var manufacturers = isNew || !allProductsManufacturerIds.ContainsKey(product.Id) ? new int[0] : allProductsManufacturerIds[product.Id];
-                        var importedManufacturers = manufacturerNames.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(x => allManufacturers.First(m => m.Name == x.Trim()).Id).ToList();
+                        var importedManufacturers = manufacturerList.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(x => allManufacturers.FirstOrDefault(m => m.Name == x.Trim())?.Id ?? int.Parse(x.Trim())).ToList();
                         foreach (var manufacturerId in importedManufacturers)
                         {
                             if (manufacturers.Any(c => c == manufacturerId))
@@ -1675,10 +1719,28 @@ namespace Nop.Services.ExportImport
                     tempProperty = metadata.Manager.GetProperty("ProductTags");
                     if (tempProperty != null)
                     {
-                        var productTags = tempProperty.StringValue.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToArray();
+                        var productTags = tempProperty.StringValue.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
+
+                        //searching existing product tags by their id
+                        var productTagIds = productTags.Where(pt => int.TryParse(pt, out var _)).Select(int.Parse);
+                        var pruductTagsByIds = product.ProductProductTagMappings
+                            .Select(mapping => mapping.ProductTag).Where(pt => productTagIds.Contains(pt.Id)).ToList();
+                        productTags.AddRange(pruductTagsByIds.Select(pt => pt.Name));
+                        var filter = pruductTagsByIds.Select(pt => pt.Id.ToString()).ToList();
 
                         //product tag mappings
-                        _productTagService.UpdateProductTags(product, productTags);
+                        _productTagService.UpdateProductTags(product, productTags.Where(pt => !filter.Contains(pt)).ToArray());
+                    }
+
+                    tempProperty = metadata.Manager.GetProperty("LimitedToStores");
+                    if (tempProperty != null)
+                    {
+                        var limitedToStoresList = tempProperty.StringValue;
+
+                        var importedStores = product.LimitedToStores ? limitedToStoresList.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(x => allStores.FirstOrDefault(store => store.Name == x.Trim())?.Id ?? int.Parse(x.Trim())).ToList() : new List<int>();
+
+                        _productService.UpdateProductStoreMappings(product, importedStores);
                     }
 
                     var picture1 = DownloadFile(metadata.Manager.GetProperty("Picture1")?.StringValue, downloadedFiles);
@@ -1701,14 +1763,14 @@ namespace Nop.Services.ExportImport
                     //_productService.UpdateHasDiscountsApplied(product);
                 }
 
-                if (_mediaSettings.ImportProductImagesUsingHash && _pictureService.StoreInDb && _dataProvider.SupportedLengthOfBinaryHash() > 0)
+                if (_mediaSettings.ImportProductImagesUsingHash && _pictureService.StoreInDb && _dataProvider.SupportedLengthOfBinaryHash > 0)
                     ImportProductImagesUsingHash(productPictureMetadata, allProductsBySku);
                 else
                     ImportProductImagesUsingServices(productPictureMetadata);
 
                 foreach (var downloadedFile in downloadedFiles)
                 {
-                    if(!_fileProvider.FileExists(downloadedFile))
+                    if (!_fileProvider.FileExists(downloadedFile))
                         continue;
 
                     try
@@ -1717,7 +1779,7 @@ namespace Nop.Services.ExportImport
                     }
                     catch
                     {
-                       
+                        // ignored
                     }
                 }
 
@@ -1725,7 +1787,7 @@ namespace Nop.Services.ExportImport
                 _customerActivityService.InsertActivity("ImportProducts", string.Format(_localizationService.GetResource("ActivityLog.ImportProducts"), metadata.CountProductsInFile));
             }
         }
-        
+
         /// <summary>
         /// Import newsletter subscribers from TXT file
         /// </summary>
@@ -1849,7 +1911,7 @@ namespace Nop.Services.ExportImport
                             Name = name,
                             Abbreviation = abbreviation,
                             Published = published,
-                            DisplayOrder = displayOrder,
+                            DisplayOrder = displayOrder
                         };
                         _stateProvinceService.InsertStateProvince(state);
                     }
@@ -1881,7 +1943,7 @@ namespace Nop.Services.ExportImport
                 //the columns
                 var properties = GetPropertiesByExcelCells<Manufacturer>(worksheet);
 
-                var manager = new PropertyManager<Manufacturer>(properties);
+                var manager = new PropertyManager<Manufacturer>(properties, _catalogSettings);
 
                 var iRow = 2;
                 var setSeName = properties.Any(p => p.PropertyName == "SeName");
@@ -1890,7 +1952,7 @@ namespace Nop.Services.ExportImport
                 {
                     var allColumnsAreEmpty = manager.GetProperties
                         .Select(property => worksheet.Cells[iRow, property.PropertyOrderPosition])
-                        .All(cell => cell == null || cell.Value == null || string.IsNullOrEmpty(cell.Value.ToString()));
+                        .All(cell => cell?.Value == null || string.IsNullOrEmpty(cell.Value.ToString()));
 
                     if (allColumnsAreEmpty)
                         break;
@@ -1978,7 +2040,7 @@ namespace Nop.Services.ExportImport
 
                     //search engine name
                     if (setSeName)
-                        _urlRecordService.SaveSlug(manufacturer, manufacturer.ValidateSeName(seName, manufacturer.Name, true), 0);
+                        _urlRecordService.SaveSlug(manufacturer, _urlRecordService.ValidateSeName(manufacturer, seName, manufacturer.Name, true), 0);
 
                     iRow++;
                 }
@@ -2005,7 +2067,7 @@ namespace Nop.Services.ExportImport
                 //the columns
                 var properties = GetPropertiesByExcelCells<Category>(worksheet);
 
-                var manager = new PropertyManager<Category>(properties);
+                var manager = new PropertyManager<Category>(properties, _catalogSettings);
 
                 var iRow = 2;
                 var setSeName = properties.Any(p => p.PropertyName == "SeName");
@@ -2013,7 +2075,7 @@ namespace Nop.Services.ExportImport
                 //performance optimization, load all categories in one SQL request
                 var allCategories = _categoryService
                     .GetAllCategories(showHidden: true, loadCacheableCopy: false)
-                    .GroupBy(c => c.GetFormattedBreadCrumb(_categoryService))
+                    .GroupBy(c => _categoryService.GetFormattedBreadCrumb(c))
                     .ToDictionary(c => c.Key, c => c.First());
 
                 var saveNextTime = new List<int>();
@@ -2028,10 +2090,10 @@ namespace Nop.Services.ExportImport
                         break;
 
                     //get category by data in xlsx file if it possible, or create new category
-                    var category = GetCategoryFromXlsx(manager, worksheet, iRow, allCategories, out bool isNew, out string curentCategoryBreadCrumb);
+                    var category = GetCategoryFromXlsx(manager, worksheet, iRow, allCategories, out var isNew, out var curentCategoryBreadCrumb);
 
                     //update category by data in xlsx file
-                    var seName = UpdateCategoryByXlsx(category, manager, allCategories, isNew, out bool isParentCategoryExists);
+                    var seName = UpdateCategoryByXlsx(category, manager, allCategories, isNew, out var isParentCategoryExists);
 
                     if (isParentCategoryExists)
                     {
@@ -2057,9 +2119,9 @@ namespace Nop.Services.ExportImport
                     foreach (var rowId in saveNextTime)
                     {
                         //get category by data in xlsx file if it possible, or create new category
-                        var category = GetCategoryFromXlsx(manager, worksheet, rowId, allCategories, out bool isNew, out string curentCategoryBreadCrumb);
+                        var category = GetCategoryFromXlsx(manager, worksheet, rowId, allCategories, out var isNew, out var curentCategoryBreadCrumb);
                         //update category by data in xlsx file
-                        var seName = UpdateCategoryByXlsx(category, manager, allCategories, isNew, out bool isParentCategoryExists);
+                        var seName = UpdateCategoryByXlsx(category, manager, allCategories, isNew, out var isParentCategoryExists);
 
                         if (!isParentCategoryExists)
                             continue;
@@ -2112,9 +2174,9 @@ namespace Nop.Services.ExportImport
 
         public class CategoryKey
         {
-            public CategoryKey(Category category, ICategoryService categoryService, IStoreMappingService storeMappingService)
+            public CategoryKey(Category category, ICategoryService categoryService, IList<Category> allCategories, IStoreMappingService storeMappingService)
             {
-                Key = category.GetFormattedBreadCrumb(categoryService);
+                Key = categoryService.GetFormattedBreadCrumb(category, allCategories);
                 StoresIds = category.LimitedToStores ? storeMappingService.GetStoresIdsWithAccess(category).ToList() : new List<int>();
                 Category = category;
             }
@@ -2126,7 +2188,9 @@ namespace Nop.Services.ExportImport
             }
 
             public List<int> StoresIds { get; }
+
             public Category Category { get; }
+
             public string Key { get; }
 
             public bool Equals(CategoryKey y)
@@ -2137,24 +2201,22 @@ namespace Nop.Services.ExportImport
                 if (Category != null && y.Category != null)
                     return Category.Id == y.Category.Id;
 
-                if ((StoresIds.Any() || y.StoresIds.Any()) 
+                if ((StoresIds.Any() || y.StoresIds.Any())
                     && (StoresIds.All(id => !y.StoresIds.Contains(id)) || y.StoresIds.All(id => !StoresIds.Contains(id))))
                     return false;
 
                 return Key.Equals(y.Key);
             }
-            
+
             public override int GetHashCode()
             {
-                if (StoresIds.Any())
-                {
-                    var storesIds = StoresIds.Select(id => id.ToString())
-                        .Aggregate("", (all, current) => all + current);
+                if (!StoresIds.Any()) 
+                    return Key.GetHashCode();
 
-                    return $"{storesIds}_{Key}".GetHashCode();
-                }
+                var storesIds = StoresIds.Select(id => id.ToString())
+                    .Aggregate(string.Empty, (all, current) => all + current);
 
-                return Key.GetHashCode();
+                return $"{storesIds}_{Key}".GetHashCode();
             }
 
             public override bool Equals(object obj)

@@ -1,7 +1,5 @@
 using System;
 using System.Linq;
-using Nop.Core.Domain.Common;
-using Nop.Core.Domain.Tax;
 
 namespace Nop.Core.Domain.Customers
 {
@@ -10,8 +8,6 @@ namespace Nop.Core.Domain.Customers
     /// </summary>
     public static class CustomerExtensions
     {
-        #region Customer role
-
         /// <summary>
         /// Gets a value indicating whether customer is in a certain customer role
         /// </summary>
@@ -29,7 +25,7 @@ namespace Nop.Core.Domain.Customers
                 throw new ArgumentNullException(nameof(customerRoleSystemName));
 
             var result = customer.CustomerRoles
-                .FirstOrDefault(cr => (!onlyActiveCustomerRoles || cr.Active) && (cr.SystemName == customerRoleSystemName)) != null;
+                .FirstOrDefault(cr => (!onlyActiveCustomerRoles || cr.Active) && cr.SystemName == customerRoleSystemName) != null;
             return result;
         }
 
@@ -46,7 +42,7 @@ namespace Nop.Core.Domain.Customers
             if (!customer.IsSystemAccount || string.IsNullOrEmpty(customer.SystemName))
                 return false;
 
-            var result = customer.SystemName.Equals(SystemCustomerNames.SearchEngine, StringComparison.InvariantCultureIgnoreCase);
+            var result = customer.SystemName.Equals(NopCustomerDefaults.SearchEngineCustomerName, StringComparison.InvariantCultureIgnoreCase);
             return result;
         }
 
@@ -63,7 +59,7 @@ namespace Nop.Core.Domain.Customers
             if (!customer.IsSystemAccount || string.IsNullOrEmpty(customer.SystemName))
                 return false;
 
-            var result = customer.SystemName.Equals(SystemCustomerNames.BackgroundTask, StringComparison.InvariantCultureIgnoreCase);
+            var result = customer.SystemName.Equals(NopCustomerDefaults.BackgroundTaskCustomerName, StringComparison.InvariantCultureIgnoreCase);
             return result;
         }
 
@@ -75,7 +71,7 @@ namespace Nop.Core.Domain.Customers
         /// <returns>Result</returns>
         public static bool IsAdmin(this Customer customer, bool onlyActiveCustomerRoles = true)
         {
-            return IsInCustomerRole(customer, SystemCustomerRoleNames.Administrators, onlyActiveCustomerRoles);
+            return IsInCustomerRole(customer, NopCustomerDefaults.AdministratorsRoleName, onlyActiveCustomerRoles);
         }
 
         /// <summary>
@@ -86,7 +82,7 @@ namespace Nop.Core.Domain.Customers
         /// <returns>Result</returns>
         public static bool IsForumModerator(this Customer customer, bool onlyActiveCustomerRoles = true)
         {
-            return IsInCustomerRole(customer, SystemCustomerRoleNames.ForumModerators, onlyActiveCustomerRoles);
+            return IsInCustomerRole(customer, NopCustomerDefaults.ForumModeratorsRoleName, onlyActiveCustomerRoles);
         }
 
         /// <summary>
@@ -97,7 +93,7 @@ namespace Nop.Core.Domain.Customers
         /// <returns>Result</returns>
         public static bool IsRegistered(this Customer customer, bool onlyActiveCustomerRoles = true)
         {
-            return IsInCustomerRole(customer, SystemCustomerRoleNames.Registered, onlyActiveCustomerRoles);
+            return IsInCustomerRole(customer, NopCustomerDefaults.RegisteredRoleName, onlyActiveCustomerRoles);
         }
 
         /// <summary>
@@ -108,7 +104,7 @@ namespace Nop.Core.Domain.Customers
         /// <returns>Result</returns>
         public static bool IsGuest(this Customer customer, bool onlyActiveCustomerRoles = true)
         {
-            return IsInCustomerRole(customer, SystemCustomerRoleNames.Guests, onlyActiveCustomerRoles);
+            return IsInCustomerRole(customer, NopCustomerDefaults.GuestsRoleName, onlyActiveCustomerRoles);
         }
 
         /// <summary>
@@ -119,46 +115,26 @@ namespace Nop.Core.Domain.Customers
         /// <returns>Result</returns>
         public static bool IsVendor(this Customer customer, bool onlyActiveCustomerRoles = true)
         {
-            return IsInCustomerRole(customer, SystemCustomerRoleNames.Vendors, onlyActiveCustomerRoles);
+            return IsInCustomerRole(customer, NopCustomerDefaults.VendorsRoleName, onlyActiveCustomerRoles);
         }
 
         /// <summary>
-        /// Gets a default tax display type (if configured)
+        /// Get customer role identifiers
         /// </summary>
         /// <param name="customer">Customer</param>
-        /// <returns>Result</returns>
-        public static TaxDisplayType? GetDefaultTaxDisplayType(this Customer customer)
+        /// <param name="showHidden">A value indicating whether to load hidden records</param>
+        /// <returns>Customer role identifiers</returns>
+        public static int[] GetCustomerRoleIds(this Customer customer, bool showHidden = false)
         {
             if (customer == null)
                 throw new ArgumentNullException(nameof(customer));
 
-            var roleWithOVerriddenTaxType = customer.CustomerRoles.FirstOrDefault(cr => cr.Active && cr.OverrideTaxDisplayType);
-            if (roleWithOVerriddenTaxType == null)
-                return null;
+            var customerRolesIds = customer.CustomerRoles
+               .Where(cr => showHidden || cr.Active)
+               .Select(cr => cr.Id)
+               .ToArray();
 
-            return (TaxDisplayType)roleWithOVerriddenTaxType.DefaultTaxDisplayTypeId;
+            return customerRolesIds;
         }
-
-        #endregion
-
-        #region Addresses
-
-        /// <summary>
-        /// Remove address
-        /// </summary>
-        /// <param name="customer">Customer</param>
-        /// <param name="address">Address</param>
-        public static void RemoveAddress(this Customer customer, Address address)
-        {
-            if (customer.Addresses.Contains(address))
-            {
-                if (customer.BillingAddress == address) customer.BillingAddress = null;
-                if (customer.ShippingAddress == address) customer.ShippingAddress = null;
-
-                customer.Addresses.Remove(address);
-            }
-        }
-
-        #endregion
     }
 }

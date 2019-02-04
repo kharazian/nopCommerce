@@ -8,7 +8,7 @@ namespace Nop.Web.Areas.Admin.Models.Settings
     /// <summary>
     /// Represents a store information settings model
     /// </summary>
-    public partial class StoreInformationSettingsModel : BaseNopModel
+    public partial class StoreInformationSettingsModel : BaseNopModel, ISettingsModel
     {
         #region Ctor
 
@@ -20,6 +20,8 @@ namespace Nop.Web.Areas.Admin.Models.Settings
         #endregion
 
         #region Properties
+
+        public int ActiveStoreScopeConfiguration { get; set; }
 
         [NopResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.StoreClosed")]
         public bool StoreClosed { get; set; }
@@ -94,6 +96,10 @@ namespace Nop.Web.Areas.Admin.Models.Settings
         [NopResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.SitemapIncludeProductTags")]
         public bool SitemapIncludeProductTags { get; set; }
         public bool SitemapIncludeProductTags_OverrideForStore { get; set; }
+
+        [NopResourceDisplayName("Admin.Configuration.Settings.GeneralCommon.UseResponseCompression")]
+        public bool UseResponseCompression { get; set; }
+        public bool UseResponseCompression_OverrideForStore { get; set; }
 
         #endregion
 

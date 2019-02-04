@@ -69,10 +69,15 @@
                 @T("Admin.Common.Import")
             </button>
             }
+            <a asp-action="BulkEdit" class="btn bg-yellow">
+                <i class="fa fa-edit"></i>
+                @T("Admin.Common.BulkEdit")
+            </a>
             <button type="button" id="delete-selected" class="btn bg-red">
                 <i class="fa fa-trash-o"></i>
                 @T("Admin.Common.Delete.Selected")
-            </button>
+            </button>      
+            <nop-action-confirmation asp-button-id="delete-selected" />
             @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.ProductListButtons })
         </div>
     </div>
@@ -126,7 +131,7 @@
                                 </div>
                             </div>
                             <div class="col-md-7">
-                                <div class="form-group" @(Model.AvailableStores.SelectionIsNotPossible() ? Html.Raw("style=\"display:none\"") : null)>
+                                <div class="form-group" @(Model.HideStoresList ? Html.Raw("style=\"display:none\"") : null)>
                                     <div class="col-md-4">
                                         <nop-label asp-for="SearchStoreId" />
                                     </div>
@@ -319,13 +324,6 @@
                 return false;
             });
 
-            $("#@Html.IdFor(model => model.SearchProductName)").keydown(function (event) {
-                if (event.keyCode === 13) {
-                    $("#search-products").click();
-                    return false;
-                }
-            });
-
             $("#@Html.IdFor(model => model.GoDirectlyToSku)").keydown(function (event) {
                 if (event.keyCode === 13) {
                     $("#go-to-product-by-sku").click();
@@ -333,29 +331,27 @@
                 }
             });
             //delete selected
-            $('#delete-selected').click(function(e) {
-                e.preventDefault();
-
+            $("#delete-selected-action-confirmation-submit-button").bind("click", function () {
                 var postData = {
                     selectedIds: selectedIds
                 };
                 addAntiForgeryToken(postData);
-
                 $.ajax({
                     cache: false,
                     type: "POST",
                     url: "@(Url.Action("DeleteSelected", "Product"))",
                     data: postData,
-                    complete: function(data) {
+                    complete: function (data) {
                         //reload grid
                         var grid = $('#products-grid').data('kendoGrid');
                         grid.dataSource.read();
                     },
-                    error: function(xhr, ajaxOptions, thrownError) {
-                        alert(thrownError);
-                    },
-                    traditional: true
+                    error: function (xhr, ajaxOptions, thrownError) {
+                        $('#deleteSelectedFailed-info').html(thrownError);
+                        $("#deleteSelectedFailed").click();
+                    }
                 });
+                $('#delete-selected-action-confirmation').modal('toggle');
                 return false;
             });
 
@@ -400,6 +396,8 @@
         }
     </script>
 </form>
+@*<nop-delete-confirmation asp-button-id="delete-selected" />*@
+<nop-alert asp-alert-id="deleteSelectedFailed" />
 
 @*import products form*@
 <div id="importexcel-window" class="modal fade" tabindex="-1" role="dialog" aria-labelledby="importexcel-window-title">
@@ -448,6 +446,8 @@
 <form asp-controller="Product" asp-action="ExportXmlSelected" method="post" id="export-xml-selected-form">
     <input type="hidden" id="selectedIds" name="selectedIds" value="" />
 </form>
+
+
 
 <script>
     $(document).ready(function () {

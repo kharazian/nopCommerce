@@ -24,8 +24,10 @@ namespace Nop.Services.Payments
         /// Load payment provider by system name
         /// </summary>
         /// <param name="systemName">System name</param>
+        /// <param name="customer">Load records allowed only to a specified customer; pass null to ignore ACL permissions</param>
+        /// <param name="storeId">Load records allowed only on the specified store; pass 0 to ignore store mappings</param>
         /// <returns>Found payment provider</returns>
-        IPaymentMethod LoadPaymentMethodBySystemName(string systemName);
+        IPaymentMethod LoadPaymentMethodBySystemName(string systemName, Customer customer = null, int storeId = 0);
 
         /// <summary>
         /// Load all payment providers
@@ -35,6 +37,13 @@ namespace Nop.Services.Payments
         /// <param name="filterByCountryId">Load records allowed only in a specified country; pass 0 to load all records</param>
         /// <returns>Payment providers</returns>
         IList<IPaymentMethod> LoadAllPaymentMethods(Customer customer = null, int storeId = 0, int filterByCountryId = 0);
+
+        /// <summary>
+        /// Is payment method active?
+        /// </summary>
+        /// <param name="paymentMethod">Payment method</param>
+        /// <returns>Result</returns>
+        bool IsPaymentMethodActive(IPaymentMethod paymentMethod);
 
         #endregion
 
@@ -162,6 +171,29 @@ namespace Nop.Services.Payments
         /// <param name="creditCardNumber">Credit card number</param>
         /// <returns>Masked credit card number</returns>
         string GetMaskedCreditCardNumber(string creditCardNumber);
+
+        /// <summary>
+        /// Calculate payment method fee
+        /// </summary>
+        /// <param name="cart">Shopping cart</param>
+        /// <param name="fee">Fee value</param>
+        /// <param name="usePercentage">Is fee amount specified as percentage or fixed value?</param>
+        /// <returns>Result</returns>
+        decimal CalculateAdditionalFee(IList<ShoppingCartItem> cart, decimal fee, bool usePercentage);
+
+        /// <summary>
+        /// Serialize CustomValues of ProcessPaymentRequest
+        /// </summary>
+        /// <param name="request">Request</param>
+        /// <returns>Serialized CustomValues</returns>
+        string SerializeCustomValues(ProcessPaymentRequest request);
+
+        /// <summary>
+        /// Deserialize CustomValues of Order
+        /// </summary>
+        /// <param name="order">Order</param>
+        /// <returns>Serialized CustomValues CustomValues</returns>
+        Dictionary<string, object> DeserializeCustomValues(Order order);
 
         #endregion
     }

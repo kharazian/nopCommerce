@@ -8,9 +8,6 @@ namespace Nop.Core.Domain.Catalog
     /// </summary>
     public class CatalogSettings : ISettings
     {
-        /// <summary>
-        /// Ctor
-        /// </summary>
         public CatalogSettings()
         {
             ProductSortingEnumDisabled = new List<int>();
@@ -209,6 +206,11 @@ namespace Nop.Core.Domain.Catalog
         public bool ShowProductImagesInSearchAutoComplete { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether to show link to all result in the auto complete search
+        /// </summary>
+        public bool ShowLinkToAllResultInSearchAutoComplete { get; set; }
+
+        /// <summary>
         /// Gets or sets a minimum search term length
         /// </summary>
         public int ProductSearchTermMinimumLength { get; set; }
@@ -399,6 +401,11 @@ namespace Nop.Core.Domain.Catalog
         public bool ExportImportProductAttributes { get; set; }
 
         /// <summary>
+        /// Gets or sets a value indicating whether need to use "limited to stores" property for exported/imported products
+        /// </summary>
+        public bool ExportImportProductUseLimitedToStores { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether the products need to be exported/imported with their specification attributes
         /// </summary>
         public bool ExportImportProductSpecificationAttributes { get; set; }
@@ -437,5 +444,20 @@ namespace Nop.Core.Domain.Catalog
         /// Gets or sets a value indicating whether to remove required products from the cart if the main one is removed
         /// </summary>
         public bool RemoveRequiredProducts { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the related entities need to be exported/imported using name
+        /// </summary>
+        public bool ExportImportRelatedEntitiesByName { get; set; }
+
+        /// <summary>
+        /// Gets or sets count of displayed years for datepicker
+        /// </summary>
+        public int CountDisplayedYearsDatePicker { get; set; }
+
+        /// <summary>
+        /// Get or set a value indicating whether it's necessary to show the date for pre-order availability in a public store
+        /// </summary>
+        public bool DisplayDatePreOrderAvailability { get; set; }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using Microsoft.AspNetCore.Mvc;
@@ -7,9 +8,10 @@ using Microsoft.Extensions.Primitives;
 using Nop.Core;
 using Nop.Core.Data;
 using Nop.Core.Domain.Customers;
-using Nop.Services;
 using Nop.Services.Customers;
 using Nop.Services.Discounts;
+using Nop.Services.Localization;
+using Nop.Services.Messages;
 
 namespace Nop.Web.Framework.Mvc.Filters
 {
@@ -32,23 +34,32 @@ namespace Nop.Web.Framework.Mvc.Filters
         #region Nested filter
 
         /// <summary>
-        /// Represents a filter that checks and and applied discount coupon code to customer
+        /// Represents a filter that checks and applied discount coupon code to customer
         /// </summary>
         private class CheckDiscountCouponFilter : IActionFilter
         {
             #region Fields
 
+            private readonly ICustomerService _customerService;
             private readonly IDiscountService _discountService;
+            private readonly ILocalizationService _localizationService;
+            private readonly INotificationService _notificationService;
             private readonly IWorkContext _workContext;
 
             #endregion
 
             #region Ctor
 
-            public CheckDiscountCouponFilter(IDiscountService discountService, 
+            public CheckDiscountCouponFilter(ICustomerService customerService,
+                IDiscountService discountService,
+                ILocalizationService localizationService,
+                INotificationService notificationService,
                 IWorkContext workContext)
             {
+                this._customerService = customerService;
                 this._discountService = discountService;
+                this._localizationService = localizationService;
+                this._notificationService = notificationService;
                 this._workContext = workContext;
             }
 
@@ -64,7 +75,7 @@ namespace Nop.Web.Framework.Mvc.Filters
             {
                 if (context == null)
                     throw new ArgumentNullException(nameof(context));
-                
+
                 //check request query parameters
                 if (!context.HttpContext.Request?.Query?.Any() ?? true)
                     return;
@@ -73,27 +84,55 @@ namespace Nop.Web.Framework.Mvc.Filters
                 if (!context.HttpContext.Request.Method.Equals(WebRequestMethods.Http.Get, StringComparison.InvariantCultureIgnoreCase))
                     return;
 
-                if (!DataSettingsHelper.DatabaseIsInstalled())
+                if (!DataSettingsManager.DatabaseIsInstalled)
                     return;
-                
+
+                var currentCustomer = _workContext.CurrentCustomer;
+
                 //ignore search engines
-                if (_workContext.CurrentCustomer.IsSearchEngineAccount())
+                if (currentCustomer.IsSearchEngineAccount())
                     return;
 
                 //try to get discount coupon code
-                var queryKey = NopServicesDefaults.DiscountCouponQueryParameter;
-                if (!context.HttpContext.Request.Query.TryGetValue(queryKey, out StringValues couponCodes) || StringValues.IsNullOrEmpty(couponCodes))
+                var queryKey = NopDiscountDefaults.DiscountCouponQueryParameter;
+                if (!context.HttpContext.Request.Query.TryGetValue(queryKey, out var couponCodes) || StringValues.IsNullOrEmpty(couponCodes))
                     return;
 
                 //get validated discounts with passed coupon codes
                 var discounts = couponCodes
                     .SelectMany(couponCode => _discountService.GetAllDiscountsForCaching(couponCode: couponCode))
                     .Distinct()
-                    .Where(discount => _discountService.ValidateDiscount(discount, _workContext.CurrentCustomer, couponCodes.ToArray()).IsValid)
                     .ToList();
 
-                //apply discount coupon codes to customer
-                discounts.ForEach(discount => _workContext.CurrentCustomer.ApplyDiscountCouponCode(discount.CouponCode));
+                var validCouponCodes = new List<string>();
+
+                foreach (var discount in discounts)
+                {
+                    if (!_discountService.ValidateDiscount(discount, currentCustomer, couponCodes.ToArray()).IsValid)
+                        continue;
+                    
+                    //apply discount coupon codes to customer
+                    _customerService.ApplyDiscountCouponCode(currentCustomer, discount.CouponCode);
+                    validCouponCodes.Add(discount.CouponCode);
+                }
+
+                //show notifications for activated coupon codes
+                foreach (var validCouponCode in validCouponCodes.Distinct())
+                {
+                    _notificationService.SuccessNotification(
+                        string.Format(_localizationService.GetResource("ShoppingCart.DiscountCouponCode.Activated"),
+                            validCouponCode));
+                }
+
+                //show notifications for invalid coupon codes
+                foreach (var invalidCouponCode in couponCodes.Except(
+                    validCouponCodes.Distinct()))
+                {
+                    _notificationService.WarningNotification(
+                        string.Format(_localizationService.GetResource("ShoppingCart.DiscountCouponCode.Invalid"),
+                            invalidCouponCode));
+                }
+
             }
 
             /// <summary>

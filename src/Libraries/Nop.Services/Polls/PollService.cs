@@ -27,18 +27,9 @@ namespace Nop.Services.Polls
 
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="catalogSettings">Catalog settings</param>
-        /// <param name="eventPublisher">Event publisher</param>
-        /// <param name="pollRepository">Poll repository</param>
-        /// <param name="pollAnswerRepository">Poll answer repository</param>
-        /// <param name="pollVotingRecordRepository">Poll voting record repository></param>
-        /// <param name="storeMappingRepository">Store mapping repository</param>
         public PollService(CatalogSettings catalogSettings,
             IEventPublisher eventPublisher,
-            IRepository<Poll> pollRepository, 
+            IRepository<Poll> pollRepository,
             IRepository<PollAnswer> pollAnswerRepository,
             IRepository<PollVotingRecord> pollVotingRecordRepository,
              IRepository<StoreMapping> storeMappingRepository)
@@ -79,8 +70,8 @@ namespace Nop.Services.Polls
         /// <param name="pageIndex">Page index</param>
         /// <param name="pageSize">Page size</param>
         /// <returns>Polls</returns>
-        public virtual IPagedList<Poll> GetPolls(int storeId, int languageId = 0, bool 
-            showHidden = false, bool loadShownOnHomePageOnly = false, string systemKeyword = null, 
+        public virtual IPagedList<Poll> GetPolls(int storeId, int languageId = 0, bool
+            showHidden = false, bool loadShownOnHomePageOnly = false, string systemKeyword = null,
             int pageIndex = 0, int pageSize = int.MaxValue)
         {
             var query = _pollRepository.Table;
@@ -111,7 +102,7 @@ namespace Nop.Services.Polls
             {
                 query = from poll in query
                         join storeMapping in _storeMappingRepository.Table
-                            on new { Id = poll.Id, Name = nameof(Poll) }
+                            on new { poll.Id, Name = nameof(Poll) }
                             equals new { Id = storeMapping.EntityId, Name = storeMapping.EntityName } into storeMappingsWithNulls
                         from storeMapping in storeMappingsWithNulls.DefaultIfEmpty()
                         where !poll.LimitedToStores || storeMapping.StoreId == storeId
@@ -169,7 +160,7 @@ namespace Nop.Services.Polls
             //event notification
             _eventPublisher.EntityUpdated(poll);
         }
-        
+
         /// <summary>
         /// Gets a poll answer
         /// </summary>
@@ -182,7 +173,7 @@ namespace Nop.Services.Polls
 
             return _pollAnswerRepository.GetById(pollAnswerId);
         }
-        
+
         /// <summary>
         /// Deletes a poll answer
         /// </summary>

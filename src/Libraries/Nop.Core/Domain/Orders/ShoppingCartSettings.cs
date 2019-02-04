@@ -99,10 +99,10 @@ namespace Nop.Core.Domain.Orders
         public bool RoundPricesDuringCalculation { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether we should group shopping cart items for the same products
-        /// For example, a customer could have two shopping cart items for the same products (different product attributes)
+        /// Gets or sets a value indicating whether a store owner will be able to offer special prices when customers buy bigger amounts of a particular product.
+        /// For example, a customer could have two shopping cart items for the same products (different product attributes).
         /// </summary>
-        public bool GroupTierPricesForDistinctShoppingCartItems  { get; set; }
+        public bool GroupTierPricesForDistinctShoppingCartItems { get; set; }
 
         /// <summary>
         /// Gets or sets a value indicating whether a customer will be able to edit products in the cart

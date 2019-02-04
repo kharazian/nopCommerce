@@ -2,12 +2,11 @@
 using System.Linq;
 using Nop.Core;
 using Nop.Core.Caching;
+using Nop.Core.Domain.Customers;
 using Nop.Core.Domain.Topics;
-using Nop.Services.Customers;
 using Nop.Services.Localization;
 using Nop.Services.Security;
 using Nop.Services.Seo;
-using Nop.Services.Stores;
 using Nop.Services.Topics;
 using Nop.Web.Infrastructure.Cache;
 using Nop.Web.Models.Topics;
@@ -21,33 +20,36 @@ namespace Nop.Web.Factories
     {
         #region Fields
 
-        private readonly ITopicService _topicService;
-        private readonly IWorkContext _workContext;
-        private readonly IStoreContext _storeContext;
-        private readonly IStaticCacheManager _cacheManager;
-        private readonly IStoreMappingService _storeMappingService;
         private readonly IAclService _aclService;
+        private readonly ILocalizationService _localizationService;
+        private readonly IStaticCacheManager _cacheManager;
+        private readonly IStoreContext _storeContext;
+        private readonly ITopicService _topicService;
         private readonly ITopicTemplateService _topicTemplateService;
+        private readonly IUrlRecordService _urlRecordService;
+        private readonly IWorkContext _workContext;
 
         #endregion
 
         #region Ctor
 
-        public TopicModelFactory(ITopicService topicService,
-            IWorkContext workContext,
-            IStoreContext storeContext,
+        public TopicModelFactory(IAclService aclService,
+            ILocalizationService localizationService,
             IStaticCacheManager cacheManager,
-            IStoreMappingService storeMappingService,
-            IAclService aclService,
-            ITopicTemplateService topicTemplateService)
+            IStoreContext storeContext,
+            ITopicService topicService,
+            ITopicTemplateService topicTemplateService,
+            IUrlRecordService urlRecordService,
+            IWorkContext workContext)
         {
-            this._topicService = topicService;
-            this._workContext = workContext;
-            this._storeContext = storeContext;
-            this._cacheManager = cacheManager;
-            this._storeMappingService = storeMappingService;
             this._aclService = aclService;
+            this._localizationService = localizationService;
+            this._cacheManager = cacheManager;
+            this._storeContext = storeContext;
+            this._topicService = topicService;
             this._topicTemplateService = topicTemplateService;
+            this._urlRecordService = urlRecordService;
+            this._workContext = workContext;
         }
 
         #endregion
@@ -70,12 +72,12 @@ namespace Nop.Web.Factories
                 SystemName = topic.SystemName,
                 IncludeInSitemap = topic.IncludeInSitemap,
                 IsPasswordProtected = topic.IsPasswordProtected,
-                Title = topic.IsPasswordProtected ? "" : topic.GetLocalized(x => x.Title),
-                Body = topic.IsPasswordProtected ? "" : topic.GetLocalized(x => x.Body),
-                MetaKeywords = topic.GetLocalized(x => x.MetaKeywords),
-                MetaDescription = topic.GetLocalized(x => x.MetaDescription),
-                MetaTitle = topic.GetLocalized(x => x.MetaTitle),
-                SeName = topic.GetSeName(),
+                Title = topic.IsPasswordProtected ? "" : _localizationService.GetLocalized(topic, x => x.Title),
+                Body = topic.IsPasswordProtected ? "" : _localizationService.GetLocalized(topic, x => x.Body),
+                MetaKeywords = _localizationService.GetLocalized(topic, x => x.MetaKeywords),
+                MetaDescription = _localizationService.GetLocalized(topic, x => x.MetaDescription),
+                MetaTitle = _localizationService.GetLocalized(topic, x => x.MetaTitle),
+                SeName = _urlRecordService.GetSeName(topic),
                 TopicTemplateId = topic.TopicTemplateId,
                 Published = topic.Published
             };
@@ -93,7 +95,7 @@ namespace Nop.Web.Factories
         /// <returns>Topic model</returns>
         public virtual TopicModel PrepareTopicModelById(int topicId)
         {
-            var cacheKey = string.Format(ModelCacheEventConsumer.TOPIC_MODEL_BY_ID_KEY,
+            var cacheKey = string.Format(NopModelCacheDefaults.TopicModelByIdKey,
                 topicId,
                 _workContext.WorkingLanguage.Id,
                 _storeContext.CurrentStore.Id,
@@ -103,7 +105,7 @@ namespace Nop.Web.Factories
                 var topic = _topicService.GetTopicById(topicId);
                 //ACL (access control list)
                 if (topic == null || !_aclService.Authorize(topic))
-                    return null;                
+                    return null;
                 return PrepareTopicModel(topic);
             });
 
@@ -117,7 +119,7 @@ namespace Nop.Web.Factories
         /// <returns>Topic model</returns>
         public virtual TopicModel PrepareTopicModelBySystemName(string systemName)
         {
-            var cacheKey = string.Format(ModelCacheEventConsumer.TOPIC_MODEL_BY_SYSTEMNAME_KEY,
+            var cacheKey = string.Format(NopModelCacheDefaults.TopicModelBySystemNameKey,
                 systemName,
                 _workContext.WorkingLanguage.Id,
                 _storeContext.CurrentStore.Id,
@@ -141,7 +143,7 @@ namespace Nop.Web.Factories
         /// <returns>View path</returns>
         public virtual string PrepareTemplateViewPath(int topicTemplateId)
         {
-            var templateCacheKey = string.Format(ModelCacheEventConsumer.TOPIC_TEMPLATE_MODEL_KEY, topicTemplateId);
+            var templateCacheKey = string.Format(NopModelCacheDefaults.TopicTemplateModelKey, topicTemplateId);
             var templateViewPath = _cacheManager.Get(templateCacheKey, () =>
             {
                 var template = _topicTemplateService.GetTopicTemplateById(topicTemplateId);

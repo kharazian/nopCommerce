@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Linq;
-using Nop.Core.Domain.Customers;
 using Nop.Services.Authentication.External;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.ExternalAuthentication;
 using Nop.Web.Framework.Extensions;
 
@@ -15,17 +14,14 @@ namespace Nop.Web.Areas.Admin.Factories
     {
         #region Fields
 
-        private readonly ExternalAuthenticationSettings _externalAuthenticationSettings;
         private readonly IExternalAuthenticationService _externalAuthenticationService;
 
         #endregion
 
         #region Ctor
 
-        public ExternalAuthenticationMethodModelFactory(ExternalAuthenticationSettings externalAuthenticationSettings,
-            IExternalAuthenticationService externalAuthenticationService)
+        public ExternalAuthenticationMethodModelFactory(IExternalAuthenticationService externalAuthenticationService)
         {
-            this._externalAuthenticationSettings = externalAuthenticationSettings;
             this._externalAuthenticationService = externalAuthenticationService;
         }
 
@@ -70,10 +66,10 @@ namespace Nop.Web.Areas.Admin.Factories
                 Data = externalAuthenticationMethods.PaginationByRequestModel(searchModel).Select(method =>
                 {
                     //fill in model values from the entity
-                    var externalAuthenticationMethodModel = method.ToModel();
+                    var externalAuthenticationMethodModel = method.ToPluginModel<ExternalAuthenticationMethodModel>();
 
                     //fill in additional values (not existing in the entity)
-                    externalAuthenticationMethodModel.IsActive = method.IsMethodActive(_externalAuthenticationSettings);
+                    externalAuthenticationMethodModel.IsActive = _externalAuthenticationService.IsExternalAuthenticationMethodActive(method);
                     externalAuthenticationMethodModel.ConfigurationUrl = method.GetConfigurationPageUrl();
 
                     return externalAuthenticationMethodModel;

@@ -14,6 +14,7 @@ namespace Nop.Services.Vendors
     {
         #region Fields
 
+        private readonly ILocalizationService _localizationService;
         private readonly IVendorAttributeParser _vendorAttributeParser;
         private readonly IVendorAttributeService _vendorAttributeService;
         private readonly IWorkContext _workContext;
@@ -22,16 +23,12 @@ namespace Nop.Services.Vendors
 
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="vendorAttributeParser">Vendor attribute parser</param>
-        /// <param name="vendorAttributeService">Vendor attribute service</param>
-        /// <param name="workContext">Work context</param>
-        public VendorAttributeFormatter(IVendorAttributeParser vendorAttributeParser,
+        public VendorAttributeFormatter(ILocalizationService localizationService,
+            IVendorAttributeParser vendorAttributeParser,
             IVendorAttributeService vendorAttributeService,
             IWorkContext workContext)
         {
+            this._localizationService = localizationService;
             this._vendorAttributeParser = vendorAttributeParser;
             this._vendorAttributeService = vendorAttributeService;
             this._workContext = workContext;
@@ -60,14 +57,14 @@ namespace Nop.Services.Vendors
                 for (var j = 0; j < valuesStr.Count; j++)
                 {
                     var valueStr = valuesStr[j];
-                    var formattedAttribute = "";
+                    var formattedAttribute = string.Empty;
                     if (!attribute.ShouldHaveValues())
                     {
                         //no values
                         if (attribute.AttributeControlType == AttributeControlType.MultilineTextbox)
                         {
                             //multiline textbox
-                            var attributeName = attribute.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id);
+                            var attributeName = _localizationService.GetLocalized(attribute, a => a.Name, _workContext.WorkingLanguage.Id);
                             //encode (if required)
                             if (htmlEncode)
                                 attributeName = WebUtility.HtmlEncode(attributeName);
@@ -82,7 +79,7 @@ namespace Nop.Services.Vendors
                         else
                         {
                             //other attributes (textbox, datepicker)
-                            formattedAttribute = $"{attribute.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id)}: {valueStr}";
+                            formattedAttribute = $"{_localizationService.GetLocalized(attribute, a => a.Name, _workContext.WorkingLanguage.Id)}: {valueStr}";
                             //encode (if required)
                             if (htmlEncode)
                                 formattedAttribute = WebUtility.HtmlEncode(formattedAttribute);
@@ -90,12 +87,12 @@ namespace Nop.Services.Vendors
                     }
                     else
                     {
-                        if (int.TryParse(valueStr, out int attributeValueId))
+                        if (int.TryParse(valueStr, out var attributeValueId))
                         {
                             var attributeValue = _vendorAttributeService.GetVendorAttributeValueById(attributeValueId);
                             if (attributeValue != null)
                             {
-                                formattedAttribute = $"{attribute.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id)}: {attributeValue.GetLocalized(a => a.Name, _workContext.WorkingLanguage.Id)}";
+                                formattedAttribute = $"{_localizationService.GetLocalized(attribute, a => a.Name, _workContext.WorkingLanguage.Id)}: {_localizationService.GetLocalized(attributeValue, a => a.Name, _workContext.WorkingLanguage.Id)}";
                             }
                             //encode (if required)
                             if (htmlEncode)
@@ -103,12 +100,12 @@ namespace Nop.Services.Vendors
                         }
                     }
 
-                    if (!string.IsNullOrEmpty(formattedAttribute))
-                    {
-                        if (i != 0 || j != 0)
-                            result.Append(separator);
-                        result.Append(formattedAttribute);
-                    }
+                    if (string.IsNullOrEmpty(formattedAttribute)) 
+                        continue;
+
+                    if (i != 0 || j != 0)
+                        result.Append(separator);
+                    result.Append(formattedAttribute);
                 }
             }
 

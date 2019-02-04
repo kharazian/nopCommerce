@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Nop.Core;
 using Nop.Core.Caching;
+using Nop.Core.Domain.Customers;
 using Nop.Core.Infrastructure;
-using Nop.Services.Customers;
 using Nop.Services.Localization;
 using Nop.Services.Seo;
 using Nop.Services.Topics;
@@ -18,32 +18,6 @@ namespace Nop.Web.Extensions
 {
     public static class HtmlExtensions
     {
-        /// <summary>
-        /// BBCode editor
-        /// </summary>
-        /// <typeparam name="TModel">Model</typeparam>
-        /// <param name="html">HTML Helper</param>
-        /// <param name="name">Name</param>
-        /// <returns>Editor</returns>
-        public static IHtmlContent BBCodeEditor<TModel>(this IHtmlHelper<TModel> html, string name)
-        {
-            var sb = new StringBuilder();
-
-            var storeLocation = EngineContext.Current.Resolve<IWebHelper>().GetStoreLocation();
-            var bbEditorWebRoot = $"{storeLocation}js/";
-
-            sb.AppendFormat("<script src=\"{0}js/bbeditor/ed.js\" type=\"{1}\"></script>", storeLocation, MimeTypes.TextJavascript);
-            sb.AppendLine();
-            sb.AppendFormat("<script language=\"javascript\" type=\"{0}\">", MimeTypes.TextJavascript);
-            sb.AppendLine();
-            sb.AppendFormat("edToolbar('{0}','{1}');", name, bbEditorWebRoot);
-            sb.AppendLine();
-            sb.Append("</script>");
-            sb.AppendLine();
-
-            return new HtmlString(sb.ToString());
-        }
-
         //we have two pagers:
         //The first one can have custom routes
         //The second one just adds query string parameter
@@ -145,7 +119,7 @@ namespace Nop.Web.Extensions
                         links.Append("<li class=\"next-page\">");
                         if (model.UseRouteLinks)
                         {
-                            var link = html.RouteLink(model.NextButtonText, model.RouteActionName, model.RouteValues, new {title = localizationService.GetResource("Pager.NextPageTitle")});
+                            var link = html.RouteLink(model.NextButtonText, model.RouteActionName, model.RouteValues, new { title = localizationService.GetResource("Pager.NextPageTitle") });
                             links.Append(link.ToHtmlString());
                         }
                         else
@@ -253,7 +227,7 @@ namespace Nop.Web.Extensions
 
             //static cache manager
             var cacheManager = EngineContext.Current.Resolve<IStaticCacheManager>();
-            var cacheKey = string.Format(ModelCacheEventConsumer.TOPIC_SENAME_BY_SYSTEMNAME,
+            var cacheKey = string.Format(NopModelCacheDefaults.TopicSenameBySystemName,
                 systemName, workContext.WorkingLanguage.Id, storeContext.CurrentStore.Id,
                 string.Join(",", workContext.CurrentCustomer.GetCustomerRoleIds()));
             var cachedSeName = cacheManager.Get(cacheKey, () =>
@@ -263,7 +237,8 @@ namespace Nop.Web.Extensions
                 if (topic == null)
                     return "";
 
-                return topic.GetSeName();
+                var urlRecordService = EngineContext.Current.Resolve<IUrlRecordService>();
+                return urlRecordService.GetSeName(topic);
             });
             return cachedSeName;
         }
@@ -282,7 +257,7 @@ namespace Nop.Web.Extensions
 
             //static cache manager
             var cacheManager = EngineContext.Current.Resolve<IStaticCacheManager>();
-            var cacheKey = string.Format(ModelCacheEventConsumer.TOPIC_TITLE_BY_SYSTEMNAME, 
+            var cacheKey = string.Format(NopModelCacheDefaults.TopicTitleBySystemName,
                 systemName, workContext.WorkingLanguage.Id, storeContext.CurrentStore.Id,
                 string.Join(",", workContext.CurrentCustomer.GetCustomerRoleIds()));
             var cachedTitle = cacheManager.Get(cacheKey, () =>
@@ -292,7 +267,8 @@ namespace Nop.Web.Extensions
                 if (topic == null)
                     return "";
 
-                return topic.GetLocalized(x => x.Title);
+                var localizationService = EngineContext.Current.Resolve<ILocalizationService>();
+                return localizationService.GetLocalized(topic, x => x.Title);
             });
             return cachedTitle;
         }

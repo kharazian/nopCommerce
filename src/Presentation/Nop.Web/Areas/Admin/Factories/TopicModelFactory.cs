@@ -4,11 +4,12 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Nop.Core;
+using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Topics;
 using Nop.Services.Localization;
 using Nop.Services.Seo;
 using Nop.Services.Topics;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Topics;
 using Nop.Web.Framework.Extensions;
 using Nop.Web.Framework.Factories;
@@ -22,35 +23,44 @@ namespace Nop.Web.Areas.Admin.Factories
     {
         #region Fields
 
+        private readonly CatalogSettings _catalogSettings;
         private readonly IAclSupportedModelFactory _aclSupportedModelFactory;
         private readonly IActionContextAccessor _actionContextAccessor;
         private readonly IBaseAdminModelFactory _baseAdminModelFactory;
+        private readonly ILocalizationService _localizationService;
         private readonly ILocalizedModelFactory _localizedModelFactory;
         private readonly IStoreMappingSupportedModelFactory _storeMappingSupportedModelFactory;
         private readonly ITopicService _topicService;
         private readonly IUrlHelperFactory _urlHelperFactory;
+        private readonly IUrlRecordService _urlRecordService;
         private readonly IWebHelper _webHelper;
 
         #endregion
 
         #region Ctor
 
-        public TopicModelFactory(IAclSupportedModelFactory aclSupportedModelFactory,
+        public TopicModelFactory(CatalogSettings catalogSettings,
+            IAclSupportedModelFactory aclSupportedModelFactory,
             IActionContextAccessor actionContextAccessor,
             IBaseAdminModelFactory baseAdminModelFactory,
+            ILocalizationService localizationService,
             ILocalizedModelFactory localizedModelFactory,
             IStoreMappingSupportedModelFactory storeMappingSupportedModelFactory,
             ITopicService topicService,
             IUrlHelperFactory urlHelperFactory,
+            IUrlRecordService urlRecordService,
             IWebHelper webHelper)
         {
+            this._catalogSettings = catalogSettings;
             this._aclSupportedModelFactory = aclSupportedModelFactory;
             this._actionContextAccessor = actionContextAccessor;
             this._baseAdminModelFactory = baseAdminModelFactory;
+            this._localizationService = localizationService;
             this._localizedModelFactory = localizedModelFactory;
             this._storeMappingSupportedModelFactory = storeMappingSupportedModelFactory;
             this._topicService = topicService;
             this._urlHelperFactory = urlHelperFactory;
+            this._urlRecordService = urlRecordService;
             this._webHelper = webHelper;
         }
 
@@ -70,6 +80,8 @@ namespace Nop.Web.Areas.Admin.Factories
 
             //prepare available stores
             _baseAdminModelFactory.PrepareStores(searchModel.AvailableStores);
+
+            searchModel.HideStoresList = _catalogSettings.IgnoreStoreLimitations || searchModel.AvailableStores.SelectionIsNotPossible();
 
             //prepare page parameters
             searchModel.SetGridPageSize();
@@ -106,10 +118,12 @@ namespace Nop.Web.Areas.Admin.Factories
                 Data = topics.PaginationByRequestModel(searchModel).Select(topic =>
                 {
                     //fill in model values from the entity
-                    var topicModel = topic.ToModel();
+                    var topicModel = topic.ToModel<TopicModel>();
 
                     //little performance optimization: ensure that "Body" is not returned
                     topicModel.Body = string.Empty;
+
+                    topicModel.SeName = _urlRecordService.GetSeName(topic, 0, true, false);
 
                     return topicModel;
                 }),
@@ -133,20 +147,24 @@ namespace Nop.Web.Areas.Admin.Factories
             if (topic != null)
             {
                 //fill in model values from the entity
-                model = model ?? topic.ToModel();
+                if (model == null)
+                {
+                    model = topic.ToModel<TopicModel>();
+                    model.SeName = _urlRecordService.GetSeName(topic, 0, true, false);
+                }
 
                 model.Url = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext)
-                    .RouteUrl("Topic", new { SeName = topic.GetSeName() }, _webHelper.CurrentRequestProtocol);
+                    .RouteUrl("Topic", new { SeName = _urlRecordService.GetSeName(topic) }, _webHelper.CurrentRequestProtocol);
 
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Title = topic.GetLocalized(entity => entity.Title, languageId, false, false);
-                    locale.Body = topic.GetLocalized(entity => entity.Body, languageId, false, false);
-                    locale.MetaKeywords = topic.GetLocalized(entity => entity.MetaKeywords, languageId, false, false);
-                    locale.MetaDescription = topic.GetLocalized(entity => entity.MetaDescription, languageId, false, false);
-                    locale.MetaTitle = topic.GetLocalized(entity => entity.MetaTitle, languageId, false, false);
-                    locale.SeName = topic.GetSeName(languageId, false, false);
+                    locale.Title = _localizationService.GetLocalized(topic, entity => entity.Title, languageId, false, false);
+                    locale.Body = _localizationService.GetLocalized(topic, entity => entity.Body, languageId, false, false);
+                    locale.MetaKeywords = _localizationService.GetLocalized(topic, entity => entity.MetaKeywords, languageId, false, false);
+                    locale.MetaDescription = _localizationService.GetLocalized(topic, entity => entity.MetaDescription, languageId, false, false);
+                    locale.MetaTitle = _localizationService.GetLocalized(topic, entity => entity.MetaTitle, languageId, false, false);
+                    locale.SeName = _urlRecordService.GetSeName(topic, languageId, false, false);
                 };
             }
 

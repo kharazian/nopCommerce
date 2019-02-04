@@ -1,16 +1,8 @@
 @model PaymentMethodsModel
 
-@{    
-    //page title
-    ViewBag.Title = T("Admin.Configuration.Payment.Methods").Text;
-    //active menu item (system name)
-    Html.SetActiveMenuItemSystemName("PaymentMethods");
-}
-
 <nop-antiforgery-token />
-
 <div class="panel-group">
-    @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.PaymentMethodRestrictionsTop, additionalData = Model })
+    @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.PaymentMethodListTop, additionalData = Model })
     <div class="panel panel-default">
         <div class="panel-body">
             <p>
@@ -170,6 +162,6 @@
             </script>
         </div>
     </div>
-    @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.PaymentMethodRestrictionsBottom, additionalData = Model })
+    @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.PaymentMethodListBottom, additionalData = Model })
 </div>
     

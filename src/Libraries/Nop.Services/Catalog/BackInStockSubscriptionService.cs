@@ -17,27 +17,24 @@ namespace Nop.Services.Catalog
     {
         #region Fields
 
+        private readonly IEventPublisher _eventPublisher;
+        private readonly IGenericAttributeService _genericAttributeService;
         private readonly IRepository<BackInStockSubscription> _backInStockSubscriptionRepository;
         private readonly IWorkflowMessageService _workflowMessageService;
-        private readonly IEventPublisher _eventPublisher;
 
         #endregion
-        
+
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="backInStockSubscriptionRepository">Back in stock subscription repository</param>
-        /// <param name="workflowMessageService">Workflow message service</param>
-        /// <param name="eventPublisher">Event publisher</param>
-        public BackInStockSubscriptionService(IRepository<BackInStockSubscription> backInStockSubscriptionRepository,
-            IWorkflowMessageService workflowMessageService,
-            IEventPublisher eventPublisher)
+        public BackInStockSubscriptionService(IEventPublisher eventPublisher,
+            IGenericAttributeService genericAttributeService,
+            IRepository<BackInStockSubscription> backInStockSubscriptionRepository,
+            IWorkflowMessageService workflowMessageService)
         {
+            this._eventPublisher = eventPublisher;
+            this._genericAttributeService = genericAttributeService;
             this._backInStockSubscriptionRepository = backInStockSubscriptionRepository;
             this._workflowMessageService = workflowMessageService;
-            this._eventPublisher = eventPublisher;
         }
 
         #endregion
@@ -185,19 +182,21 @@ namespace Nop.Services.Catalog
             foreach (var subscription in subscriptions)
             {
                 //ensure that customer is registered (simple and fast way)
-                if (CommonHelper.IsValidEmail(subscription.Customer.Email))
-                {
-                    var customer = subscription.Customer;
-                    var customerLanguageId = customer.GetAttribute<int>(SystemCustomerAttributeNames.LanguageId, subscription.StoreId);
-                    _workflowMessageService.SendBackInStockNotification(subscription, customerLanguageId);
-                    result++;
-                }
+                if (!CommonHelper.IsValidEmail(subscription.Customer.Email)) 
+                    continue;
+
+                var customer = subscription.Customer;
+                var customerLanguageId = _genericAttributeService.GetAttribute<int>(customer, NopCustomerDefaults.LanguageIdAttribute, subscription.StoreId);
+                _workflowMessageService.SendBackInStockNotification(subscription, customerLanguageId);
+                result++;
             }
+
             for (var i = 0; i <= subscriptions.Count - 1; i++)
                 DeleteSubscription(subscriptions[i]);
+
             return result;
         }
-        
+
         #endregion
     }
 }

@@ -16,19 +16,26 @@ namespace Nop.Web.Areas.Admin.Controllers
     [AdminAntiForgery(true)]
     public partial class JbimagesController : BaseAdminController
     {
-        #region Fields
+        #region Const
 
-        private readonly IPermissionService _permissionService;
-        private readonly INopFileProvider _fileProvider;
+        private const string RESULTCODE_FIELD_KEY = "resultCode";
+        private const string RESULT_FIELD_KEY = "result";
+        private const string FILENAME_FIELD_KEY = "filename";
 
         #endregion
 
+        #region Fields
 
-        public JbimagesController(IPermissionService permissionService,
-            INopFileProvider fileProvider)
+        private readonly INopFileProvider _fileProvider;
+        private readonly IPermissionService _permissionService;
+       
+        #endregion
+        
+        public JbimagesController(INopFileProvider fileProvider,
+            IPermissionService permissionService)
         {
-            this._permissionService = permissionService;
             this._fileProvider = fileProvider;
+            this._permissionService = permissionService;
         }
 
         protected virtual IList<string> GetAllowedFileTypes()
@@ -41,8 +48,8 @@ namespace Nop.Web.Areas.Admin.Controllers
         {
             if (!_permissionService.Authorize(StandardPermissionProvider.HtmlEditorManagePictures))
             {
-                ViewData["resultCode"] = "failed";
-                ViewData["result"] = "No access to this functionality";
+                ViewData[RESULTCODE_FIELD_KEY] = "failed";
+                ViewData[RESULT_FIELD_KEY] = "No access to this functionality";
                 return View();
             }
 
@@ -52,16 +59,16 @@ namespace Nop.Web.Areas.Admin.Controllers
             var uploadFile = Request.Form.Files.FirstOrDefault();
             if (uploadFile == null)
             {
-                ViewData["resultCode"] = "failed";
-                ViewData["result"] = "No file name provided";
+                ViewData[RESULTCODE_FIELD_KEY] = "failed";
+                ViewData[RESULT_FIELD_KEY] = "No file name provided";
                 return View();
             }
 
             var fileName = _fileProvider.GetFileName(uploadFile.FileName);
             if (string.IsNullOrEmpty(fileName))
             {
-                ViewData["resultCode"] = "failed";
-                ViewData["result"] = "No file name provided";
+                ViewData[RESULTCODE_FIELD_KEY] = "failed";
+                ViewData[RESULT_FIELD_KEY] = "No file name provided";
                 return View();
             }
 
@@ -71,8 +78,8 @@ namespace Nop.Web.Areas.Admin.Controllers
             var fileExtension = _fileProvider.GetFileExtension(filePath);
             if (!GetAllowedFileTypes().Contains(fileExtension))
             {
-                ViewData["resultCode"] = "failed";
-                ViewData["result"] = $"Files with {fileExtension} extension cannot be uploaded";
+                ViewData[RESULTCODE_FIELD_KEY] = "failed";
+                ViewData[RESULT_FIELD_KEY] = $"Files with {fileExtension} extension cannot be uploaded";
                 return View();
             }
 
@@ -81,9 +88,9 @@ namespace Nop.Web.Areas.Admin.Controllers
                 uploadFile.CopyTo(fileStream);
             }
            
-            ViewData["resultCode"] = "success";
-            ViewData["result"] = "success";
-            ViewData["filename"] = Url.Content($"{directory}{fileName}");
+            ViewData[RESULTCODE_FIELD_KEY] = "success";
+            ViewData[RESULT_FIELD_KEY] = "success";
+            ViewData[FILENAME_FIELD_KEY] = Url.Content($"{directory}{fileName}");
             return View();
         }
     }

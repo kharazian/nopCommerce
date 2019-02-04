@@ -10,7 +10,7 @@ using Nop.Services.Helpers;
 using Nop.Services.Localization;
 using Nop.Services.Seo;
 using Nop.Services.Vendors;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Common;
 using Nop.Web.Areas.Admin.Models.Vendors;
 using Nop.Web.Framework.Extensions;
@@ -25,14 +25,15 @@ namespace Nop.Web.Areas.Admin.Factories
     {
         #region Fields
 
-        private readonly IAddressAttributeParser _addressAttributeParser;
-        private readonly IAddressAttributeService _addressAttributeService;
+        private readonly IAddressAttributeModelFactory _addressAttributeModelFactory;
         private readonly IAddressService _addressService;
         private readonly IBaseAdminModelFactory _baseAdminModelFactory;
         private readonly ICustomerService _customerService;
         private readonly IDateTimeHelper _dateTimeHelper;
         private readonly IGenericAttributeService _genericAttributeService;
+        private readonly ILocalizationService _localizationService;
         private readonly ILocalizedModelFactory _localizedModelFactory;
+        private readonly IUrlRecordService _urlRecordService;
         private readonly IVendorAttributeParser _vendorAttributeParser;
         private readonly IVendorAttributeService _vendorAttributeService;
         private readonly IVendorService _vendorService;
@@ -42,27 +43,29 @@ namespace Nop.Web.Areas.Admin.Factories
 
         #region Ctor
 
-        public VendorModelFactory(IAddressAttributeParser addressAttributeParser,
-            IAddressAttributeService addressAttributeService,
+        public VendorModelFactory(IAddressAttributeModelFactory addressAttributeModelFactory,
             IAddressService addressService,
             IBaseAdminModelFactory baseAdminModelFactory,
             ICustomerService customerService,
             IDateTimeHelper dateTimeHelper,
             IGenericAttributeService genericAttributeService,
+            ILocalizationService localizationService,
             ILocalizedModelFactory localizedModelFactory,
+            IUrlRecordService urlRecordService,
             IVendorAttributeParser vendorAttributeParser,
             IVendorAttributeService vendorAttributeService,
             IVendorService vendorService,
             VendorSettings vendorSettings)
         {
-            this._addressAttributeParser = addressAttributeParser;
-            this._addressAttributeService = addressAttributeService;
+            this._addressAttributeModelFactory = addressAttributeModelFactory;
             this._addressService = addressService;
             this._baseAdminModelFactory = baseAdminModelFactory;
             this._customerService = customerService;
             this._dateTimeHelper = dateTimeHelper;
             this._genericAttributeService = genericAttributeService;
+            this._localizationService = localizationService;
             this._localizedModelFactory = localizedModelFactory;
+            this._urlRecordService = urlRecordService;
             this._vendorAttributeParser = vendorAttributeParser;
             this._vendorAttributeService = vendorAttributeService;
             this._vendorService = vendorService;
@@ -138,7 +141,7 @@ namespace Nop.Web.Areas.Admin.Factories
                 //set already selected attributes
                 if (vendor != null)
                 {
-                    var selectedVendorAttributes = vendor.GetAttribute<string>(VendorAttributeNames.VendorAttributes, _genericAttributeService);
+                    var selectedVendorAttributes = _genericAttributeService.GetAttribute<string>(vendor, NopVendorDefaults.VendorAttributes);
                     switch (attribute.AttributeControlType)
                     {
                         case AttributeControlType.DropdownList:
@@ -219,7 +222,7 @@ namespace Nop.Web.Areas.Admin.Factories
             _baseAdminModelFactory.PrepareStatesAndProvinces(model.AvailableStates, model.CountryId);
 
             //prepare custom address attributes
-            model.PrepareCustomAddressAttributes(address, _addressAttributeService, _addressAttributeParser);
+            _addressAttributeModelFactory.PrepareCustomAddressAttributes(model.CustomAddressAttributes, address);
         }
 
         /// <summary>
@@ -283,7 +286,13 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new VendorListModel
             {
                 //fill in model values from the entity
-                Data = vendors.Select(vendor => vendor.ToModel()),
+                Data = vendors.Select(vendor =>
+                {
+                    var vendorModel = vendor.ToModel<VendorModel>();
+                    vendorModel.SeName = _urlRecordService.GetSeName(vendor, 0, true, false);
+
+                    return vendorModel;
+                }),
                 Total = vendors.TotalCount
             };
 
@@ -304,17 +313,21 @@ namespace Nop.Web.Areas.Admin.Factories
             if (vendor != null)
             {
                 //fill in model values from the entity
-                model = model ?? vendor.ToModel();
+                if (model == null)
+                {
+                    model = vendor.ToModel<VendorModel>();
+                    model.SeName = _urlRecordService.GetSeName(vendor, 0, true, false);
+                }
 
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = vendor.GetLocalized(entity => entity.Name, languageId, false, false);
-                    locale.Description = vendor.GetLocalized(entity => entity.Description, languageId, false, false);
-                    locale.MetaKeywords = vendor.GetLocalized(entity => entity.MetaKeywords, languageId, false, false);
-                    locale.MetaDescription = vendor.GetLocalized(entity => entity.MetaDescription, languageId, false, false);
-                    locale.MetaTitle = vendor.GetLocalized(entity => entity.MetaTitle, languageId, false, false);
-                    locale.SeName = vendor.GetSeName(languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(vendor, entity => entity.Name, languageId, false, false);
+                    locale.Description = _localizationService.GetLocalized(vendor, entity => entity.Description, languageId, false, false);
+                    locale.MetaKeywords = _localizationService.GetLocalized(vendor, entity => entity.MetaKeywords, languageId, false, false);
+                    locale.MetaDescription = _localizationService.GetLocalized(vendor, entity => entity.MetaDescription, languageId, false, false);
+                    locale.MetaTitle = _localizationService.GetLocalized(vendor, entity => entity.MetaTitle, languageId, false, false);
+                    locale.SeName = _urlRecordService.GetSeName(vendor, languageId, false, false);
                 };
 
                 //prepare associated customers
@@ -343,7 +356,7 @@ namespace Nop.Web.Areas.Admin.Factories
             //prepare address model
             var address = _addressService.GetAddressById(vendor?.AddressId ?? 0);
             if (!excludeProperties && address != null)
-                model.Address = address.ToModel();
+                model.Address = address.ToModel(model.Address);
             PrepareAddressModel(model.Address, address);
 
             return model;
@@ -372,17 +385,13 @@ namespace Nop.Web.Areas.Admin.Factories
                 Data = vendorNotes.PaginationByRequestModel(searchModel).Select(note =>
                 {
                     //fill in model values from the entity        
-                    var vendorNoteModel = new VendorNoteModel
-                    {
-                        Id = note.Id,
-                        VendorId = note.VendorId
-                    };
-
+                    var vendorNoteModel = note.ToModel<VendorNoteModel>();
+                    
                     //convert dates to the user time
                     vendorNoteModel.CreatedOn = _dateTimeHelper.ConvertToUserTime(note.CreatedOnUtc, DateTimeKind.Utc);
 
                     //fill in additional values (not existing in the entity)
-                    vendorNoteModel.Note = note.FormatVendorNoteText();
+                    vendorNoteModel.Note = _vendorService.FormatVendorNoteText(note);
 
                     return vendorNoteModel;
                 }),

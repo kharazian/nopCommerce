@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Xml;
+using System.Xml.Serialization;
 using Nop.Core;
 using Nop.Core.Domain.Customers;
 using Nop.Core.Domain.Orders;
 using Nop.Core.Domain.Payments;
+using Nop.Core.Infrastructure;
 using Nop.Services.Catalog;
 using Nop.Services.Configuration;
+using Nop.Services.Orders;
 using Nop.Services.Plugins;
 
 namespace Nop.Services.Payments
@@ -18,30 +23,23 @@ namespace Nop.Services.Payments
     {
         #region Fields
 
-        private readonly PaymentSettings _paymentSettings;
-        private readonly IPluginFinder _pluginFinder;
+        private readonly IPluginService _pluginService;
         private readonly ISettingService _settingService;
+        private readonly PaymentSettings _paymentSettings;
         private readonly ShoppingCartSettings _shoppingCartSettings;
 
         #endregion
 
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="paymentSettings">Payment settings</param>
-        /// <param name="pluginFinder">Plugin finder</param>
-        /// <param name="settingService">Setting service</param>
-        /// <param name="shoppingCartSettings">Shopping cart settings</param>
-        public PaymentService(PaymentSettings paymentSettings, 
-            IPluginFinder pluginFinder,
+        public PaymentService(IPluginService pluginService,
             ISettingService settingService,
+            PaymentSettings paymentSettings,
             ShoppingCartSettings shoppingCartSettings)
         {
-            this._paymentSettings = paymentSettings;
-            this._pluginFinder = pluginFinder;
+            this._pluginService = pluginService;
             this._settingService = settingService;
+            this._paymentSettings = paymentSettings;
             this._shoppingCartSettings = shoppingCartSettings;
         }
 
@@ -69,14 +67,13 @@ namespace Nop.Services.Payments
         /// Load payment provider by system name
         /// </summary>
         /// <param name="systemName">System name</param>
+        /// <param name="customer">Load records allowed only to a specified customer; pass null to ignore ACL permissions</param>
+        /// <param name="storeId">Load records allowed only on the specified store; pass 0 to ignore store mappings</param>
         /// <returns>Found payment provider</returns>
-        public virtual IPaymentMethod LoadPaymentMethodBySystemName(string systemName)
+        public virtual IPaymentMethod LoadPaymentMethodBySystemName(string systemName, Customer customer = null, int storeId = 0)
         {
-            var descriptor = _pluginFinder.GetPluginDescriptorBySystemName<IPaymentMethod>(systemName);
-            if (descriptor != null)
-                return descriptor.Instance<IPaymentMethod>();
-
-            return null;
+            var descriptor = _pluginService.GetPluginDescriptorBySystemName<IPaymentMethod>(systemName, customer: customer, storeId: storeId);
+            return descriptor?.Instance<IPaymentMethod>();
         }
 
         /// <summary>
@@ -88,7 +85,7 @@ namespace Nop.Services.Payments
         /// <returns>Payment providers</returns>
         public virtual IList<IPaymentMethod> LoadAllPaymentMethods(Customer customer = null, int storeId = 0, int filterByCountryId = 0)
         {
-            var paymentMethods = _pluginFinder.GetPlugins<IPaymentMethod>(customer: customer, storeId: storeId).ToList();
+            var paymentMethods = _pluginService.GetPlugins<IPaymentMethod>(customer: customer, storeId: storeId).ToList();
             if (filterByCountryId == 0)
                 return paymentMethods;
 
@@ -106,6 +103,26 @@ namespace Nop.Services.Payments
             return paymentMetodsByCountry;
         }
 
+        /// <summary>
+        /// Is payment method active?
+        /// </summary>
+        /// <param name="paymentMethod">Payment method</param>
+        /// <returns>Result</returns>
+        public virtual bool IsPaymentMethodActive(IPaymentMethod paymentMethod)
+        {
+            if (paymentMethod == null)
+                throw new ArgumentNullException(nameof(paymentMethod));
+
+            if (_paymentSettings.ActivePaymentMethodSystemNames == null)
+                return false;
+
+            foreach (var activeMethodSystemName in _paymentSettings.ActivePaymentMethodSystemNames)
+                if (paymentMethod.PluginDescriptor.SystemName.Equals(activeMethodSystemName, StringComparison.InvariantCultureIgnoreCase))
+                    return true;
+
+            return false;
+        }
+
         #endregion
 
         #region Restrictions
@@ -121,9 +138,7 @@ namespace Nop.Services.Payments
                 throw new ArgumentNullException(nameof(paymentMethod));
 
             var settingKey = $"PaymentMethodRestictions.{paymentMethod.PluginDescriptor.SystemName}";
-            var restictedCountryIds = _settingService.GetSettingByKey<List<int>>(settingKey);
-            if (restictedCountryIds == null)
-                restictedCountryIds = new List<int>();
+            var restictedCountryIds = _settingService.GetSettingByKey<List<int>>(settingKey) ?? new List<int>();
             return restictedCountryIds;
         }
 
@@ -165,12 +180,14 @@ namespace Nop.Services.Payments
             //We should strip out any white space or dash in the CC number entered.
             if (!string.IsNullOrWhiteSpace(processPaymentRequest.CreditCardNumber))
             {
-                processPaymentRequest.CreditCardNumber = processPaymentRequest.CreditCardNumber.Replace(" ", "");
-                processPaymentRequest.CreditCardNumber = processPaymentRequest.CreditCardNumber.Replace("-", "");
+                processPaymentRequest.CreditCardNumber = processPaymentRequest.CreditCardNumber.Replace(" ", string.Empty);
+                processPaymentRequest.CreditCardNumber = processPaymentRequest.CreditCardNumber.Replace("-", string.Empty);
             }
+
             var paymentMethod = LoadPaymentMethodBySystemName(processPaymentRequest.PaymentMethodSystemName);
             if (paymentMethod == null)
                 throw new NopException("Payment method couldn't be loaded");
+
             return paymentMethod.ProcessPayment(processPaymentRequest);
         }
 
@@ -187,6 +204,7 @@ namespace Nop.Services.Payments
             var paymentMethod = LoadPaymentMethodBySystemName(postProcessPaymentRequest.Order.PaymentMethodSystemName);
             if (paymentMethod == null)
                 throw new NopException("Payment method couldn't be loaded");
+
             paymentMethod.PostProcessPayment(postProcessPaymentRequest);
         }
 
@@ -240,13 +258,16 @@ namespace Nop.Services.Payments
             var result = paymentMethod.GetAdditionalHandlingFee(cart);
             if (result < decimal.Zero)
                 result = decimal.Zero;
-            if (_shoppingCartSettings.RoundPricesDuringCalculation)
-            {
-                result = RoundingHelper.RoundPrice(result);
-            }
+
+            if (!_shoppingCartSettings.RoundPricesDuringCalculation)
+                return result;
+
+            var priceCalculationService = EngineContext.Current.Resolve<IPriceCalculationService>();
+            result = priceCalculationService.RoundPrice(result);
+
             return result;
         }
-        
+
         /// <summary>
         /// Gets a value indicating whether capture is supported by payment method
         /// </summary>
@@ -272,7 +293,7 @@ namespace Nop.Services.Payments
                 throw new NopException("Payment method couldn't be loaded");
             return paymentMethod.Capture(capturePaymentRequest);
         }
-        
+
         /// <summary>
         /// Gets a value indicating whether partial refund is supported by payment method
         /// </summary>
@@ -311,7 +332,7 @@ namespace Nop.Services.Payments
                 throw new NopException("Payment method couldn't be loaded");
             return paymentMethod.Refund(refundPaymentRequest);
         }
-        
+
         /// <summary>
         /// Gets a value indicating whether void is supported by payment method
         /// </summary>
@@ -337,7 +358,7 @@ namespace Nop.Services.Payments
                 throw new NopException("Payment method couldn't be loaded");
             return paymentMethod.Void(voidPaymentRequest);
         }
-        
+
         /// <summary>
         /// Gets a recurring payment type of payment method
         /// </summary>
@@ -408,7 +429,96 @@ namespace Nop.Services.Payments
             {
                 maskedChars += "*";
             }
+
             return maskedChars + last4;
+        }
+
+        /// <summary>
+        /// Calculate payment method fee
+        /// </summary>
+        /// <param name="cart">Shopping cart</param>
+        /// <param name="fee">Fee value</param>
+        /// <param name="usePercentage">Is fee amount specified as percentage or fixed value?</param>
+        /// <returns>Result</returns>
+        public virtual decimal CalculateAdditionalFee(IList<ShoppingCartItem> cart, decimal fee, bool usePercentage)
+        {
+            if (fee <= 0)
+                return fee;
+
+            decimal result;
+            if (usePercentage)
+            {
+                //percentage
+                var orderTotalCalculationService = EngineContext.Current.Resolve<IOrderTotalCalculationService>();
+                var orderTotalWithoutPaymentFee = orderTotalCalculationService.GetShoppingCartTotal(cart, usePaymentMethodAdditionalFee: false);
+                result = (decimal)((float)orderTotalWithoutPaymentFee * (float)fee / 100f);
+            }
+            else
+            {
+                //fixed value
+                result = fee;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Serialize CustomValues of ProcessPaymentRequest
+        /// </summary>
+        /// <param name="request">Request</param>
+        /// <returns>Serialized CustomValues</returns>
+        public virtual string SerializeCustomValues(ProcessPaymentRequest request)
+        {
+            if (request == null)
+                throw new ArgumentNullException(nameof(request));
+
+            if (!request.CustomValues.Any())
+                return null;
+
+            //XmlSerializer won't serialize objects that implement IDictionary by default.
+            //http://msdn.microsoft.com/en-us/magazine/cc164135.aspx 
+
+            //also see http://ropox.ru/tag/ixmlserializable/ (Russian language)
+
+            var ds = new DictionarySerializer(request.CustomValues);
+            var xs = new XmlSerializer(typeof(DictionarySerializer));
+
+            using (var textWriter = new StringWriter())
+            {
+                using (var xmlWriter = XmlWriter.Create(textWriter))
+                {
+                    xs.Serialize(xmlWriter, ds);
+                }
+
+                var result = textWriter.ToString();
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// Deserialize CustomValues of Order
+        /// </summary>
+        /// <param name="order">Order</param>
+        /// <returns>Serialized CustomValues CustomValues</returns>
+        public virtual Dictionary<string, object> DeserializeCustomValues(Order order)
+        {
+            if (order == null)
+                throw new ArgumentNullException(nameof(order));
+
+            if (string.IsNullOrWhiteSpace(order.CustomValuesXml))
+                return new Dictionary<string, object>();
+
+            var serializer = new XmlSerializer(typeof(DictionarySerializer));
+
+            using (var textReader = new StringReader(order.CustomValuesXml))
+            {
+                using (var xmlReader = XmlReader.Create(textReader))
+                {
+                    if (serializer.Deserialize(xmlReader) is DictionarySerializer ds)
+                        return ds.Dictionary;
+                    return new Dictionary<string, object>();
+                }
+            }
         }
 
         #endregion

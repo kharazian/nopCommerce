@@ -152,6 +152,7 @@ namespace Nop.Web.Models.Catalog
             //pre-order
             public bool AvailableForPreOrder { get; set; }
             public DateTime? PreOrderAvailabilityStartDateTimeUtc { get; set; }
+            public string PreOrderAvailabilityStartDateTimeUserTime { get; set; }
 
             //updating existing shopping cart or wishlist item?
             public int UpdatedShoppingCartItemId { get; set; }
@@ -198,21 +199,20 @@ namespace Nop.Web.Models.Catalog
             public bool IsGiftCard { get; set; }
 
             [NopResourceDisplayName("Products.GiftCard.RecipientName")]
-
             public string RecipientName { get; set; }
-            [NopResourceDisplayName("Products.GiftCard.RecipientEmail")]
 
+            [NopResourceDisplayName("Products.GiftCard.RecipientEmail")]
             [DataType(DataType.EmailAddress)]
             public string RecipientEmail { get; set; }
+
             [NopResourceDisplayName("Products.GiftCard.SenderName")]
-
             public string SenderName { get; set; }
-            [NopResourceDisplayName("Products.GiftCard.SenderEmail")]
 
+            [NopResourceDisplayName("Products.GiftCard.SenderEmail")]
             [DataType(DataType.EmailAddress)]
             public string SenderEmail { get; set; }
-            [NopResourceDisplayName("Products.GiftCard.Message")]
 
+            [NopResourceDisplayName("Products.GiftCard.Message")]
             public string Message { get; set; }
 
             public GiftCardType GiftCardType { get; set; }

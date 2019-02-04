@@ -25,7 +25,7 @@
                         });
                     },
                     error: function(xhr, ajaxOptions, thrownError) {
-                        alert('Failed to retrieve states.');
+                        $("#statesAlert").click();
                     }
                 });
             });
@@ -433,13 +433,15 @@
                     </div>
                     <div class="col-md-9">
                         <nop-editor asp-for="VatNumber"/>
-                        (@string.Format(T("Admin.Customers.Customers.Fields.VatNumberStatus").Text, Model.VatNumberStatusNote))
-                        <button type="submit" name="markVatNumberAsValid" class="btn btn-primary">
-                            @T("Admin.Customers.Customers.Fields.VatNumber.MarkAsValid")
-                        </button>
-                        <button type="submit" name="markVatNumberAsInvalid" class="btn bg-red">
-                            @T("Admin.Customers.Customers.Fields.VatNumber.MarkAsInvalid")
-                        </button>
+                        <div class="margin-t-5">
+                            (@string.Format(T("Admin.Customers.Customers.Fields.VatNumberStatus").Text, Model.VatNumberStatusNote))
+                            <button type="submit" name="markVatNumberAsValid" class="btn btn-primary">
+                                @T("Admin.Customers.Customers.Fields.VatNumber.MarkAsValid")
+                            </button>
+                            <button type="submit" name="markVatNumberAsInvalid" class="btn bg-red">
+                                @T("Admin.Customers.Customers.Fields.VatNumber.MarkAsInvalid")
+                            </button>
+                        </div>
                         <span asp-validation-for="VatNumber"></span>
                     </div>
                 </div>
@@ -535,3 +537,4 @@
     </div>
     @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.CustomerDetailsInfoBottom, additionalData = Model })
 </div>
+<nop-alert asp-alert-id="statesAlert" asp-alert-message="@T("Admin.Common.Alert.States.Failed")" />

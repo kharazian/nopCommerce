@@ -3,7 +3,7 @@ using System.Linq;
 using Nop.Core.Domain.Directory;
 using Nop.Services.Directory;
 using Nop.Services.Localization;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Directory;
 using Nop.Web.Framework.Extensions;
 using Nop.Web.Framework.Factories;
@@ -18,6 +18,7 @@ namespace Nop.Web.Areas.Admin.Factories
         #region Fields
 
         private readonly ICountryService _countryService;
+        private readonly ILocalizationService _localizationService;
         private readonly ILocalizedModelFactory _localizedModelFactory;
         private readonly IStoreMappingSupportedModelFactory _storeMappingSupportedModelFactory;
         private readonly IStateProvinceService _stateProvinceService;
@@ -27,11 +28,13 @@ namespace Nop.Web.Areas.Admin.Factories
         #region Ctor
 
         public CountryModelFactory(ICountryService countryService,
+            ILocalizationService localizationService,
             ILocalizedModelFactory localizedModelFactory,
             IStoreMappingSupportedModelFactory storeMappingSupportedModelFactory,
             IStateProvinceService stateProvinceService)
         {
             this._countryService = countryService;
+            this._localizationService = localizationService;
             this._localizedModelFactory = localizedModelFactory;
             this._storeMappingSupportedModelFactory = storeMappingSupportedModelFactory;
             this._stateProvinceService = stateProvinceService;
@@ -100,7 +103,13 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new CountryListModel
             {
                 //fill in model values from the entity
-                Data = countries.PaginationByRequestModel(searchModel).Select(country => country.ToModel()),
+                Data = countries.PaginationByRequestModel(searchModel).Select(country =>
+                {
+                    var countryModel = country.ToModel<CountryModel>();
+                    countryModel.NumberOfStates = country.StateProvinces?.Count ?? 0;
+
+                    return countryModel;
+                }),
                 Total = countries.Count
             };
 
@@ -121,7 +130,11 @@ namespace Nop.Web.Areas.Admin.Factories
             if (country != null)
             {
                 //fill in model values from the entity
-                model = model ?? country.ToModel();
+                if (model == null)
+                {
+                    model = country.ToModel<CountryModel>();
+                    model.NumberOfStates = country.StateProvinces?.Count ?? 0;
+                }
 
                 //prepare nested search model
                 PrepareStateProvinceSearchModel(model.StateProvinceSearchModel, country);
@@ -129,7 +142,7 @@ namespace Nop.Web.Areas.Admin.Factories
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = country.GetLocalized(entity => entity.Name, languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(country, entity => entity.Name, languageId, false, false);
                 };
             }
 
@@ -172,7 +185,7 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new StateProvinceListModel
             {
                 //fill in model values from the entity
-                Data = states.PaginationByRequestModel(searchModel).Select(state => state.ToModel()),
+                Data = states.PaginationByRequestModel(searchModel).Select(state => state.ToModel<StateProvinceModel>()),
                 Total = states.Count
             };
 
@@ -195,12 +208,12 @@ namespace Nop.Web.Areas.Admin.Factories
             if (state != null)
             {
                 //fill in model values from the entity
-                model = model ?? state.ToModel();
+                model = model ?? state.ToModel<StateProvinceModel>();
 
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = country.GetLocalized(entity => entity.Name, languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(state, entity => entity.Name, languageId, false, false);
                 };
             }
 

@@ -3,6 +3,7 @@ using Nop.Core;
 using Nop.Plugin.Payments.CheckMoneyOrder.Models;
 using Nop.Services.Configuration;
 using Nop.Services.Localization;
+using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Web.Framework;
 using Nop.Web.Framework.Controllers;
@@ -18,6 +19,7 @@ namespace Nop.Plugin.Payments.CheckMoneyOrder.Controllers
 
         private readonly ILanguageService _languageService;
         private readonly ILocalizationService _localizationService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly ISettingService _settingService;
         private readonly IStoreContext _storeContext;
@@ -28,12 +30,14 @@ namespace Nop.Plugin.Payments.CheckMoneyOrder.Controllers
 
         public PaymentCheckMoneyOrderController(ILanguageService languageService,
             ILocalizationService localizationService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             ISettingService settingService,
             IStoreContext storeContext)
         {
             this._languageService = languageService;
             this._localizationService = localizationService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._settingService = settingService;
             this._storeContext = storeContext;
@@ -60,7 +64,8 @@ namespace Nop.Plugin.Payments.CheckMoneyOrder.Controllers
             //locales
             AddLocales(_languageService, model.Locales, (locale, languageId) =>
             {
-                locale.DescriptionText = checkMoneyOrderPaymentSettings.GetLocalizedSetting(x => x.DescriptionText, languageId, 0, false, false);
+                locale.DescriptionText = _localizationService
+                    .GetLocalizedSetting(checkMoneyOrderPaymentSettings, x => x.DescriptionText, languageId, 0, false, false);
             });
             model.AdditionalFee = checkMoneyOrderPaymentSettings.AdditionalFee;
             model.AdditionalFeePercentage = checkMoneyOrderPaymentSettings.AdditionalFeePercentage;
@@ -105,17 +110,18 @@ namespace Nop.Plugin.Payments.CheckMoneyOrder.Controllers
             _settingService.SaveSettingOverridablePerStore(checkMoneyOrderPaymentSettings, x => x.AdditionalFee, model.AdditionalFee_OverrideForStore, storeScope, false);
             _settingService.SaveSettingOverridablePerStore(checkMoneyOrderPaymentSettings, x => x.AdditionalFeePercentage, model.AdditionalFeePercentage_OverrideForStore, storeScope, false);
             _settingService.SaveSettingOverridablePerStore(checkMoneyOrderPaymentSettings, x => x.ShippableProductRequired, model.ShippableProductRequired_OverrideForStore, storeScope, false);
-           
+
             //now clear settings cache
             _settingService.ClearCache();
 
             //localization. no multi-store support for localization yet.
             foreach (var localized in model.Locales)
             {
-                checkMoneyOrderPaymentSettings.SaveLocalizedSetting(x => x.DescriptionText, localized.LanguageId, localized.DescriptionText);
+                _localizationService.SaveLocalizedSetting(checkMoneyOrderPaymentSettings,
+                    x => x.DescriptionText, localized.LanguageId, localized.DescriptionText);
             }
 
-            SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Plugins.Saved"));
 
             return Configure();
         }

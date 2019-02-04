@@ -15,26 +15,23 @@ namespace Nop.Services.Helpers
     {
         #region Fields
 
-        private readonly NopConfig _nopConfig;
+        private static readonly object _locker = new object();
+
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly INopFileProvider _fileProvider;
-        private static readonly object _locker = new object();
+        private readonly NopConfig _nopConfig;
 
         #endregion
 
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="nopConfig">Config</param>
-        /// <param name="httpContextAccessor">HTTP context accessor</param>
-        /// <param name="fileProvider">File provider</param>
-        public UserAgentHelper(NopConfig nopConfig, IHttpContextAccessor httpContextAccessor, INopFileProvider fileProvider)
+        public UserAgentHelper(IHttpContextAccessor httpContextAccessor,
+            INopFileProvider fileProvider,
+            NopConfig nopConfig)
         {
-            this._nopConfig = nopConfig;
             this._httpContextAccessor = httpContextAccessor;
             this._fileProvider = fileProvider;
+            this._nopConfig = nopConfig;
         }
 
         #endregion
@@ -84,7 +81,7 @@ namespace Nop.Services.Helpers
         /// <returns>Result</returns>
         public virtual bool IsSearchEngine()
         {
-            if (_httpContextAccessor == null || _httpContextAccessor.HttpContext == null)
+            if (_httpContextAccessor?.HttpContext == null)
                 return false;
 
             //we put required logic in try-catch block
@@ -102,6 +99,7 @@ namespace Nop.Services.Helpers
             }
             catch
             {
+                // ignored
             }
 
             return false;
@@ -113,7 +111,7 @@ namespace Nop.Services.Helpers
         /// <returns></returns>
         public virtual bool IsMobileDevice()
         {
-            if (_httpContextAccessor == null || _httpContextAccessor.HttpContext == null)
+            if (_httpContextAccessor?.HttpContext == null)
                 return false;
 
             //we put required logic in try-catch block
@@ -131,6 +129,7 @@ namespace Nop.Services.Helpers
             }
             catch
             {
+                // ignored
             }
 
             return false;
@@ -142,7 +141,7 @@ namespace Nop.Services.Helpers
         /// <returns></returns>
         public virtual bool IsIe8()
         {
-            if (_httpContextAccessor == null || _httpContextAccessor.HttpContext == null)
+            if (_httpContextAccessor?.HttpContext == null)
                 return false;
 
             //https://blogs.msdn.microsoft.com/ie/2009/01/09/the-internet-explorer-8-user-agent-string-updated-edition/
@@ -150,7 +149,7 @@ namespace Nop.Services.Helpers
             var userAgent = _httpContextAccessor.HttpContext.Request.Headers[HeaderNames.UserAgent].ToString();
             return !string.IsNullOrEmpty(userAgent) && userAgent.IndexOf("MSIE 8.0", StringComparison.InvariantCultureIgnoreCase) >= 0;
         }
-        
+
         #endregion
     }
 }

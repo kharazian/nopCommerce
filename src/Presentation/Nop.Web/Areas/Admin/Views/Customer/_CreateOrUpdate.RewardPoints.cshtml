@@ -191,7 +191,7 @@
                                 grid.dataSource.read();
 
                                 $("#@Html.IdFor(model => model.AddRewardPoints.Points)").val(0);
-                                $("#@Html.IdFor(model => model.AddRewardPoints.Message)").val("@Model.AddRewardPoints.Message");
+                                $("#@Html.IdFor(model => model.AddRewardPoints.Message)").val(data.Message);
                                 $("#@Html.IdFor(model => model.AddRewardPoints.StoreId)").val(@Model.AddRewardPoints.StoreId);
                                 $("#@Html.IdFor(model => model.AddRewardPoints.ActivationDelayPeriodId)").val(@Model.AddRewardPoints.ActivationDelayPeriodId);
                                 $("#@Html.IdFor(model => model.AddRewardPoints.ActivationDelay)").val(@Model.AddRewardPoints.ActivationDelay);
@@ -200,14 +200,16 @@
 
                                 activatePointsImmediately();
                             } else {
-                                if(data.Error != undefined)
-                                    alert(data.Error);
+                                if (data.Error != undefined) {
+                                    $('#rewardPointsHistoryAddFailed-info').html(data.Error);
+                                    $("#rewardPointsHistoryAddFailed").click();
+                                }
                             }
 
                             $('#addRewardPoints').attr('disabled', false);
                         },
                         error:function (xhr, ajaxOptions, thrownError){
-                            alert('Failed to add reward points.');
+                            $("#rewardPointsHistoryAddAlert").click();
                             $('#addRewardPoints').attr('disabled', false);
                         }
                     });
@@ -224,3 +226,5 @@
     </div>
     @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.CustomerDetailsRewardPointsBottom, additionalData = Model })
 </div>
+<nop-alert asp-alert-id="rewardPointsHistoryAddAlert" asp-alert-message="@T("Admin.Customers.Customers.RewardPoints.Alert.HistoryAdd")" />
+<nop-alert asp-alert-id="rewardPointsHistoryAddFailed" />

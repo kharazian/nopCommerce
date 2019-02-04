@@ -1,19 +1,19 @@
 ﻿@using Nop.Services.Plugins
 @using Nop.Services.Security
 @using Nop.Web.Framework.Menu
-@inject IPluginFinder pluginFinder
+@inject IPluginService pluginService
 @inject IPermissionService permissionService
 @{
     //load sitemap
     var siteMap = new XmlSiteMap();
     siteMap.LoadFrom("~/Areas/Admin/sitemap.config");
 }
-<ul class="sidebar-menu">
+<ul class="sidebar-menu" data-widget="tree">
     @{
         //standard (default) items
         var rootNode = siteMap.RootNode;
         //plugins
-        var adminMenuPlugins = pluginFinder.GetPlugins<IAdminMenuPlugin>().ToList();
+        var adminMenuPlugins = pluginService.GetPlugins<IAdminMenuPlugin>().ToList();
         foreach (var adminMenuPlugin in adminMenuPlugins)
         {
             adminMenuPlugin.ManageSiteMap(rootNode);

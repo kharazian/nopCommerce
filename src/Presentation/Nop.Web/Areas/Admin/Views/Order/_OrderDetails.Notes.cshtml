@@ -1,4 +1,5 @@
 @model OrderModel
+@using System.Text.Encodings.Web
 
 <div class="panel-group">
     @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.OrderDetailsNotesTop, additionalData = Model })
@@ -129,7 +130,7 @@
                     <nop-label asp-for="AddOrderNoteMessage" />
                 </div>
                 <div class="col-md-9">
-                    <nop-editor asp-for="AddOrderNoteMessage" />
+                    <nop-textarea asp-for="AddOrderNoteMessage" />
                     <span asp-validation-for="AddOrderNoteMessage"></span>
                 </div>
             </div>
@@ -188,21 +189,31 @@
             };
             addAntiForgeryToken(postData);
 
-            $.ajax({
+             $.ajax({
                 cache:false,
                 type: "POST",
                 url: "@(Url.Action("OrderNoteAdd", "Order"))",
                 data: postData,
-                success: function (data) {
-                    var grid = $("#ordernotes-grid").data('kendoGrid');
-                    grid.dataSource.read();
+                 success: function (data) {
+                     if (data.Error) {
+                         $('#orderNoteAddFailed-info').html(data.Error);
+                         $("#orderNoteAddFailed").click();
+                     }
+
+                     if (data.Result) { 
+                        var grid = $("#ordernotes-grid").data('kendoGrid');
+                        grid.dataSource.read();
+                     }
+
                     $('#addOrderNote').attr('disabled', false);
                 },
-                error:function (xhr, ajaxOptions, thrownError){
-                    alert('Failed to add order note.');
-                    $('#addOrderNote').attr('disabled', false);
+                 error: function (xhr, ajaxOptions, thrownError) {
+                     $("#orderNoteAddAlert").click(); 
+                     $('#addOrderNote').attr('disabled', false);
                 }
             });
         });
     });
 </script>
+<nop-alert asp-alert-id="orderNoteAddAlert" asp-alert-message="@T("Admin.Orders.OrderNotes.Alert.Add")" />
+<nop-alert asp-alert-id="orderNoteAddFailed" />

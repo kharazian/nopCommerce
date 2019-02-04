@@ -33,6 +33,7 @@
                 <i class="fa fa-trash-o"></i>
                 @T("Admin.Catalog.ProductReviews.DeleteSelected")
             </button>
+            <nop-action-confirmation asp-button-id="delete-selected" />
         }
         @await Component.InvokeAsync("AdminWidget", new { widgetZone = AdminWidgetZones.ProductReviewListButtons })
     </div>
@@ -114,7 +115,7 @@
                                     </script>
                                 </div>
                             </div>
-                            <div class="form-group" @(Model.AvailableStores.SelectionIsNotPossible() ? Html.Raw("style=\"display:none\"") : null)>
+                            <div class="form-group" @(Model.HideStoresList ? Html.Raw("style=\"display:none\"") : null)>
                                 <div class="col-md-4">
                                     <nop-label asp-for="SearchStoreId" />
                                 </div>
@@ -291,7 +292,8 @@
                                         grid.dataSource.read();
                                     },
                                     error: function(xhr, ajaxOptions, thrownError) {
-                                        alert(thrownError);
+                                        $('#approveSelectedFailed-info').html(thrownError);
+                                        $("#approveSelectedFailed").click();
                                     },
                                     traditional: true
                                 });
@@ -318,7 +320,8 @@
                                         grid.dataSource.read();
                                     },
                                     error: function(xhr, ajaxOptions, thrownError) {
-                                        alert(thrownError);
+                                        $('#disapproveSelectedFailed-info').html(thrownError);
+                                        $("#disapproveSelectedFailed").click();
                                     },
                                     traditional: true
                                 });
@@ -326,32 +329,29 @@
                             });
 
                             //"delete selected" button
-                            $('#delete-selected').click(function(e) {
-                                e.preventDefault();
-
+                            $("#delete-selected-action-confirmation-submit-button").bind("click", function () {
                                 var postData = {
                                     selectedIds: selectedIds
                                 };
                                 addAntiForgeryToken(postData);
-
                                 $.ajax({
                                     cache: false,
                                     type: "POST",
                                     url: "@(Url.Action("DeleteSelected", "ProductReview"))",
                                     data: postData,
-                                    complete: function(data) {
+                                    complete: function (data) {
                                         //reload grid
                                         var grid = $('#productreviews-grid').data('kendoGrid');
                                         grid.dataSource.read();
                                     },
-                                    error: function(xhr, ajaxOptions, thrownError) {
-                                        alert(thrownError);
-                                    },
-                                    traditional: true
+                                    error: function (xhr, ajaxOptions, thrownError) {
+                                        $('#deleteSelectedFailed-info').html(thrownError);
+                                        $("#deleteSelectedFailed").click();
+                                    }
                                 });
+                                $('#delete-selected-action-confirmation').modal('toggle');
                                 return false;
                             });
-
 
                             $('#mastercheckbox').click(function() {
                                 $('.checkboxGroups').attr('checked', $(this).is(':checked')).change();
@@ -403,3 +403,6 @@
         </div>
     </div>
 </div>
+<nop-alert asp-alert-id="approveSelectedFailed" />
+<nop-alert asp-alert-id="disapproveSelectedFailed" />
+<nop-alert asp-alert-id="deleteSelectedFailed" />

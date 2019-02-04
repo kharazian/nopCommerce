@@ -7,7 +7,7 @@ using Nop.Core.Domain.Directory;
 using Nop.Services.Directory;
 using Nop.Services.Helpers;
 using Nop.Services.Localization;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Directory;
 using Nop.Web.Framework.Extensions;
 using Nop.Web.Framework.Factories;
@@ -24,6 +24,7 @@ namespace Nop.Web.Areas.Admin.Factories
         private readonly CurrencySettings _currencySettings;
         private readonly ICurrencyService _currencyService;
         private readonly IDateTimeHelper _dateTimeHelper;
+        private readonly ILocalizationService _localizationService;
         private readonly ILocalizedModelFactory _localizedModelFactory;
         private readonly IStoreMappingSupportedModelFactory _storeMappingSupportedModelFactory;
         private readonly IWorkContext _workContext;
@@ -35,6 +36,7 @@ namespace Nop.Web.Areas.Admin.Factories
         public CurrencyModelFactory(CurrencySettings currencySettings,
             ICurrencyService currencyService,
             IDateTimeHelper dateTimeHelper,
+            ILocalizationService localizationService,
             ILocalizedModelFactory localizedModelFactory,
             IStoreMappingSupportedModelFactory storeMappingSupportedModelFactory,
             IWorkContext workContext)
@@ -42,6 +44,7 @@ namespace Nop.Web.Areas.Admin.Factories
             this._currencySettings = currencySettings;
             this._currencyService = currencyService;
             this._dateTimeHelper = dateTimeHelper;
+            this._localizationService = localizationService;
             this._localizedModelFactory = localizedModelFactory;
             this._storeMappingSupportedModelFactory = storeMappingSupportedModelFactory;
             this._workContext = workContext;
@@ -151,7 +154,7 @@ namespace Nop.Web.Areas.Admin.Factories
                 Data = currencies.PaginationByRequestModel(searchModel).Select(currency =>
                 {
                     //fill in model values from the entity
-                    var currencyModel = currency.ToModel();
+                    var currencyModel = currency.ToModel<CurrencyModel>();
 
                     //fill in additional values (not existing in the entity)
                     currencyModel.IsPrimaryExchangeRateCurrency = currency.Id == _currencySettings.PrimaryExchangeRateCurrencyId;
@@ -179,7 +182,7 @@ namespace Nop.Web.Areas.Admin.Factories
             if (currency != null)
             {
                 //fill in model values from the entity
-                model = model ?? currency.ToModel();
+                model = model ?? currency.ToModel<CurrencyModel>();
 
                 //convert dates to the user time
                 model.CreatedOn = _dateTimeHelper.ConvertToUserTime(currency.CreatedOnUtc, DateTimeKind.Utc);
@@ -187,7 +190,7 @@ namespace Nop.Web.Areas.Admin.Factories
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = currency.GetLocalized(entity => entity.Name, languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(currency, entity => entity.Name, languageId, false, false);
                 };
             }
 

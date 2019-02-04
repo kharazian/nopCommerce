@@ -1,14 +1,13 @@
 ﻿using System;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Nop.Core;
 using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Directory;
 using Nop.Core.Domain.Orders;
 using Nop.Services.Directory;
 using Nop.Services.Localization;
 using Nop.Services.Orders;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Orders;
 using Nop.Web.Framework.Extensions;
 using Nop.Web.Framework.Factories;
@@ -31,7 +30,6 @@ namespace Nop.Web.Areas.Admin.Factories
         private readonly ILocalizedModelFactory _localizedModelFactory;
         private readonly IMeasureService _measureService;
         private readonly IStoreMappingSupportedModelFactory _storeMappingSupportedModelFactory;
-        private readonly IWorkContext _workContext;
         private readonly MeasureSettings _measureSettings;
 
         #endregion
@@ -47,7 +45,6 @@ namespace Nop.Web.Areas.Admin.Factories
             ILocalizedModelFactory localizedModelFactory,
             IMeasureService measureService,
             IStoreMappingSupportedModelFactory storeMappingSupportedModelFactory,
-            IWorkContext workContext,
             MeasureSettings measureSettings)
         {
             this._currencySettings = currencySettings;
@@ -59,7 +56,6 @@ namespace Nop.Web.Areas.Admin.Factories
             this._localizedModelFactory = localizedModelFactory;
             this._measureService = measureService;
             this._storeMappingSupportedModelFactory = storeMappingSupportedModelFactory;
-            this._workContext = workContext;
             this._measureSettings = measureSettings;
         }
 
@@ -81,9 +77,7 @@ namespace Nop.Web.Areas.Admin.Factories
                 throw new ArgumentNullException(nameof(checkoutAttribute));
 
             model.EnableCondition = !string.IsNullOrEmpty(checkoutAttribute.ConditionAttributeXml);
-            if (!model.EnableCondition)
-                return;
-
+            
             //get selected checkout attribute
             var selectedAttribute = _checkoutAttributeParser.ParseCheckoutAttributes(checkoutAttribute.ConditionAttributeXml).FirstOrDefault();
             model.SelectedAttributeId = selectedAttribute?.Id ?? 0;
@@ -172,10 +166,10 @@ namespace Nop.Web.Areas.Admin.Factories
                 Data = checkoutAttributes.PaginationByRequestModel(searchModel).Select(attribute =>
                 {
                     //fill in model values from the entity
-                    var attributeModel = attribute.ToModel();
+                    var attributeModel = attribute.ToModel<CheckoutAttributeModel>();
 
                     //fill in additional values (not existing in the entity)
-                    attributeModel.AttributeControlTypeName = attribute.AttributeControlType.GetLocalizedEnum(_localizationService, _workContext);
+                    attributeModel.AttributeControlTypeName = _localizationService.GetLocalizedEnum(attribute.AttributeControlType);
 
                     return attributeModel;
                 }),
@@ -200,7 +194,7 @@ namespace Nop.Web.Areas.Admin.Factories
             if (checkoutAttribute != null)
             {
                 //fill in model values from the entity
-                model = model ?? checkoutAttribute.ToModel();
+                model = model ?? checkoutAttribute.ToModel<CheckoutAttributeModel>();
 
                 //prepare nested search model
                 PrepareCheckoutAttributeValueSearchModel(model.CheckoutAttributeValueSearchModel, checkoutAttribute);
@@ -208,8 +202,9 @@ namespace Nop.Web.Areas.Admin.Factories
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = checkoutAttribute.GetLocalized(entity => entity.Name, languageId, false, false);
-                    locale.TextPrompt = checkoutAttribute.GetLocalized(entity => entity.TextPrompt, languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(checkoutAttribute, entity => entity.Name, languageId, false, false);
+                    locale.TextPrompt = _localizationService.GetLocalized(checkoutAttribute, entity => entity.TextPrompt, languageId, false, false);
+                    locale.DefaultValue = _localizationService.GetLocalized(checkoutAttribute, entity => entity.DefaultValue, languageId, false, false);
                 };
 
                 //whether to fill in some of properties
@@ -257,18 +252,16 @@ namespace Nop.Web.Areas.Admin.Factories
             //prepare list model
             var model = new CheckoutAttributeValueListModel
             {
-                //fill in model values from the entity
-                Data = checkoutAttributeValues.PaginationByRequestModel(searchModel).Select(value => new CheckoutAttributeValueModel
+                Data = checkoutAttributeValues.PaginationByRequestModel(searchModel).Select(value =>
                 {
-                    Id = value.Id,
-                    CheckoutAttributeId = value.CheckoutAttributeId,
-                    Name = value.CheckoutAttribute.AttributeControlType != AttributeControlType.ColorSquares
-                        ? value.Name : $"{value.Name} - {value.ColorSquaresRgb}",
-                    ColorSquaresRgb = value.ColorSquaresRgb,
-                    PriceAdjustment = value.PriceAdjustment,
-                    WeightAdjustment = value.WeightAdjustment,
-                    IsPreSelected = value.IsPreSelected,
-                    DisplayOrder = value.DisplayOrder
+                    //fill in model values from the entity
+                    var checkoutAttributeValueModel = value.ToModel<CheckoutAttributeValueModel>();
+
+                    //fill in additional values (not existing in the entity)
+                    checkoutAttributeValueModel.Name = value.CheckoutAttribute.AttributeControlType != AttributeControlType.ColorSquares
+                        ? value.Name : $"{value.Name} - {value.ColorSquaresRgb}";
+
+                    return checkoutAttributeValueModel;
                 }),
                 Total = checkoutAttributeValues.Count
             };
@@ -295,20 +288,12 @@ namespace Nop.Web.Areas.Admin.Factories
             if (checkoutAttributeValue != null)
             {
                 //fill in model values from the entity
-                model = model ?? new CheckoutAttributeValueModel
-                {
-                    Name = checkoutAttributeValue.Name,
-                    ColorSquaresRgb = checkoutAttributeValue.ColorSquaresRgb,
-                    PriceAdjustment = checkoutAttributeValue.PriceAdjustment,
-                    WeightAdjustment = checkoutAttributeValue.WeightAdjustment,
-                    IsPreSelected = checkoutAttributeValue.IsPreSelected,
-                    DisplayOrder = checkoutAttributeValue.DisplayOrder
-                };
+                model = model ?? checkoutAttributeValue.ToModel<CheckoutAttributeValueModel>();
 
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = checkoutAttributeValue.GetLocalized(entity => entity.Name, languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(checkoutAttributeValue, entity => entity.Name, languageId, false, false);
                 };
             }
 

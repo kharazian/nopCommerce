@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
-using System.IO;
 using System.Linq;
 using Nop.Core;
 using Nop.Core.Data;
 using Nop.Core.Domain.Common;
 using Nop.Core.Infrastructure;
 using Nop.Data;
+using Nop.Data.Extensions;
 
 namespace Nop.Services.Common
 {
@@ -22,26 +22,18 @@ namespace Nop.Services.Common
 
         private readonly IDataProvider _dataProvider;
         private readonly IDbContext _dbContext;
-        private readonly CommonSettings _commonSettings;
         private readonly INopFileProvider _fileProvider;
 
         #endregion
 
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="dataProvider">Data provider</param>
-        /// <param name="dbContext">Database Context</param>
-        /// <param name="commonSettings">Common settings</param>
-        /// <param name="fileProvider">File provider</param>
-        public MaintenanceService(IDataProvider dataProvider, IDbContext dbContext,
-            CommonSettings commonSettings, INopFileProvider fileProvider)
+        public MaintenanceService(IDataProvider dataProvider,
+            IDbContext dbContext,
+            INopFileProvider fileProvider)
         {
             this._dataProvider = dataProvider;
             this._dbContext = dbContext;
-            this._commonSettings = commonSettings;
             this._fileProvider = fileProvider;
         }
 
@@ -56,7 +48,7 @@ namespace Nop.Services.Common
         /// <returns></returns>
         protected virtual string GetBackupDirectoryPath(bool ensureFolderCreated = true)
         {
-            var path = _fileProvider.GetAbsolutePath("db_backups\\");
+            var path = _fileProvider.GetAbsolutePath(NopCommonDefaults.DbBackupsPath);
             if (ensureFolderCreated)
                 _fileProvider.CreateDirectory(path);
             return path;
@@ -67,53 +59,41 @@ namespace Nop.Services.Common
         /// </summary>
         protected virtual void CheckBackupSupported()
         {
-            if(_dataProvider.BackupSupported) return;
-
-            throw new DataException("This database does not support backup");
+            if (!_dataProvider.BackupSupported)
+                throw new DataException("This database does not support backup");
         }
-        
+
         #endregion
-        
+
         #region Methods
 
         /// <summary>
-        /// Get the current ident value
+        /// Get the current identity value
         /// </summary>
         /// <typeparam name="T">Entity</typeparam>
-        /// <returns>Integer ident; null if cannot get the result</returns>
-        public virtual int? GetTableIdent<T>() where T: BaseEntity
+        /// <returns>Integer identity; null if cannot get the result</returns>
+        public virtual int? GetTableIdent<T>() where T : BaseEntity
         {
-            //stored procedures aren't supported
-            if (!_commonSettings.UseStoredProceduresIfSupported || !_dataProvider.StoredProceduredSupported)
-                return null;
-
-            //stored procedures are enabled and supported by the database
             var tableName = _dbContext.GetTableName<T>();
-            var result = _dbContext.SqlQuery<decimal?>($"SELECT IDENT_CURRENT('[{tableName}]')").FirstOrDefault();
-            return result.HasValue ? Convert.ToInt32(result) : 1;            
+            var result = _dbContext
+                .QueryFromSql<DecimalQueryType>($"SELECT IDENT_CURRENT('[{tableName}]') as Value")
+                .Select(decimalValue => decimalValue.Value).FirstOrDefault();
+            return result.HasValue ? Convert.ToInt32(result) : 1;
         }
 
         /// <summary>
-        /// Set table ident (is supported)
+        /// Set table identity (is supported)
         /// </summary>
         /// <typeparam name="T">Entity</typeparam>
-        /// <param name="ident">Ident value</param>
+        /// <param name="ident">Identity value</param>
         public virtual void SetTableIdent<T>(int ident) where T : BaseEntity
         {
-            if (_commonSettings.UseStoredProceduresIfSupported && _dataProvider.StoredProceduredSupported)
-            {
-                var currentIdent = GetTableIdent<T>();
-                if (!currentIdent.HasValue || ident <= currentIdent.Value)
-                    return;
+            var currentIdent = GetTableIdent<T>();
+            if (!currentIdent.HasValue || ident <= currentIdent.Value) 
+                return;
 
-                //stored procedures are enabled and supported by the database.
-                var tableName = _dbContext.GetTableName<T>();
-                _dbContext.ExecuteSqlCommand($"DBCC CHECKIDENT([{tableName}], RESEED, {ident})");
-            }
-            else
-            {
-                throw new Exception("Stored procedures are not supported by your database");
-            }
+            var tableName = _dbContext.GetTableName<T>();
+            _dbContext.ExecuteSqlCommand($"DBCC CHECKIDENT([{tableName}], RESEED, {ident})");
         }
 
         /// <summary>
@@ -126,10 +106,10 @@ namespace Nop.Services.Common
 
             if (!_fileProvider.DirectoryExists(path))
             {
-                throw new IOException("Backup directory not exists");
+                throw new NopException("Backup directory not exists");
             }
-            
-            return _fileProvider.GetFiles(path, "*.bak")
+
+            return _fileProvider.GetFiles(path, $"*.{NopCommonDefaults.DbBackupFileExtension}")
                 .OrderByDescending(p => _fileProvider.GetLastWriteTime(p)).ToList();
         }
 
@@ -139,7 +119,7 @@ namespace Nop.Services.Common
         public virtual void BackupDatabase()
         {
             CheckBackupSupported();
-            var fileName = $"{GetBackupDirectoryPath()}database_{DateTime.Now:yyyy-MM-dd-HH-mm-ss}_{CommonHelper.GenerateRandomDigitCode(10)}.bak";
+            var fileName = $"{GetBackupDirectoryPath()}database_{DateTime.Now:yyyy-MM-dd-HH-mm-ss}_{CommonHelper.GenerateRandomDigitCode(10)}.{NopCommonDefaults.DbBackupFileExtension}";
 
             var commandText = $"BACKUP DATABASE [{_dbContext.DbName()}] TO DISK = '{fileName}' WITH FORMAT";
 
@@ -153,8 +133,8 @@ namespace Nop.Services.Common
         public virtual void RestoreDatabase(string backupFileName)
         {
             CheckBackupSupported();
-            var settings = new DataSettingsManager(_fileProvider);
-            var conn = new SqlConnectionStringBuilder(settings.LoadSettings().DataConnectionString)
+
+            var conn = new SqlConnectionStringBuilder(DataSettingsManager.LoadSettings(fileProvider: _fileProvider).DataConnectionString)
             {
                 InitialCatalog = "master"
             };
@@ -198,7 +178,31 @@ namespace Nop.Services.Common
         {
             return _fileProvider.Combine(GetBackupDirectoryPath(), backupFileName);
         }
-        
+
+        /// <summary>
+        /// Re-index database tables
+        /// </summary>
+        public virtual void ReIndexTables()
+        {
+            var commandText = $@"
+                DECLARE @TableName sysname 
+                DECLARE cur_reindex CURSOR FOR
+                SELECT table_name
+                FROM [{_dbContext.DbName()}].information_schema.tables
+                WHERE table_type = 'base table'
+                OPEN cur_reindex
+                FETCH NEXT FROM cur_reindex INTO @TableName
+                WHILE @@FETCH_STATUS = 0
+                    BEGIN
+		                exec('ALTER INDEX ALL ON [' + @TableName + '] REBUILD')
+                        FETCH NEXT FROM cur_reindex INTO @TableName
+                    END
+                CLOSE cur_reindex
+                DEALLOCATE cur_reindex";
+
+            _dbContext.ExecuteSqlCommand(commandText, true);
+        }
+
         #endregion
     }
 }

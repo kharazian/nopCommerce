@@ -7,8 +7,9 @@ using Nop.Services.Catalog;
 using Nop.Services.Discounts;
 using Nop.Services.Localization;
 using Nop.Services.Seo;
-using Nop.Web.Areas.Admin.Extensions;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Catalog;
+using Nop.Web.Framework.Extensions;
 using Nop.Web.Framework.Factories;
 
 namespace Nop.Web.Areas.Admin.Factories
@@ -26,9 +27,11 @@ namespace Nop.Web.Areas.Admin.Factories
         private readonly IManufacturerService _manufacturerService;
         private readonly IDiscountService _discountService;
         private readonly IDiscountSupportedModelFactory _discountSupportedModelFactory;
+        private readonly ILocalizationService _localizationService;
         private readonly ILocalizedModelFactory _localizedModelFactory;
         private readonly IProductService _productService;
         private readonly IStoreMappingSupportedModelFactory _storeMappingSupportedModelFactory;
+        private readonly IUrlRecordService _urlRecordService;
 
         #endregion
 
@@ -40,9 +43,11 @@ namespace Nop.Web.Areas.Admin.Factories
             IManufacturerService manufacturerService,
             IDiscountService discountService,
             IDiscountSupportedModelFactory discountSupportedModelFactory,
+            ILocalizationService localizationService,
             ILocalizedModelFactory localizedModelFactory,
             IProductService productService,
-            IStoreMappingSupportedModelFactory storeMappingSupportedModelFactory)
+            IStoreMappingSupportedModelFactory storeMappingSupportedModelFactory,
+            IUrlRecordService urlRecordService)
         {
             this._catalogSettings = catalogSettings;
             this._aclSupportedModelFactory = aclSupportedModelFactory;
@@ -50,9 +55,11 @@ namespace Nop.Web.Areas.Admin.Factories
             this._manufacturerService = manufacturerService;
             this._discountService = discountService;
             this._discountSupportedModelFactory = discountSupportedModelFactory;
+            this._localizationService = localizationService;
             this._localizedModelFactory = localizedModelFactory;
             this._productService = productService;
             this._storeMappingSupportedModelFactory = storeMappingSupportedModelFactory;
+            this._urlRecordService = urlRecordService;
         }
 
         #endregion
@@ -99,6 +106,8 @@ namespace Nop.Web.Areas.Admin.Factories
             //prepare available stores
             _baseAdminModelFactory.PrepareStores(searchModel.AvailableStores);
 
+            searchModel.HideStoresList = _catalogSettings.IgnoreStoreLimitations || searchModel.AvailableStores.SelectionIsNotPossible();
+
             //prepare page parameters
             searchModel.SetGridPageSize();
 
@@ -125,7 +134,13 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new ManufacturerListModel
             {
                 //fill in model values from the entity
-                Data = manufacturers.Select(manufacturer => manufacturer.ToModel()),
+                Data = manufacturers.Select(manufacturer =>
+                {
+                    var manufacturerModel = manufacturer.ToModel<ManufacturerModel>();
+                    manufacturerModel.SeName = _urlRecordService.GetSeName(manufacturer, 0, true, false);
+
+                    return manufacturerModel;
+                }),
                 Total = manufacturers.TotalCount
             };
 
@@ -147,7 +162,11 @@ namespace Nop.Web.Areas.Admin.Factories
             if (manufacturer != null)
             {
                 //fill in model values from the entity
-                model = model ?? manufacturer.ToModel();
+                if (model == null)
+                {
+                    model = manufacturer.ToModel<ManufacturerModel>();
+                    model.SeName = _urlRecordService.GetSeName(manufacturer, 0, true, false);
+                }
 
                 //prepare nested search model
                 PrepareManufacturerProductSearchModel(model.ManufacturerProductSearchModel, manufacturer);
@@ -155,12 +174,12 @@ namespace Nop.Web.Areas.Admin.Factories
                 //define localized model configuration action
                 localizedModelConfiguration = (locale, languageId) =>
                 {
-                    locale.Name = manufacturer.GetLocalized(entity => entity.Name, languageId, false, false);
-                    locale.Description = manufacturer.GetLocalized(entity => entity.Description, languageId, false, false);
-                    locale.MetaKeywords = manufacturer.GetLocalized(entity => entity.MetaKeywords, languageId, false, false);
-                    locale.MetaDescription = manufacturer.GetLocalized(entity => entity.MetaDescription, languageId, false, false);
-                    locale.MetaTitle = manufacturer.GetLocalized(entity => entity.MetaTitle, languageId, false, false);
-                    locale.SeName = manufacturer.GetSeName(languageId, false, false);
+                    locale.Name = _localizationService.GetLocalized(manufacturer, entity => entity.Name, languageId, false, false);
+                    locale.Description = _localizationService.GetLocalized(manufacturer, entity => entity.Description, languageId, false, false);
+                    locale.MetaKeywords = _localizationService.GetLocalized(manufacturer, entity => entity.MetaKeywords, languageId, false, false);
+                    locale.MetaDescription = _localizationService.GetLocalized(manufacturer, entity => entity.MetaDescription, languageId, false, false);
+                    locale.MetaTitle = _localizationService.GetLocalized(manufacturer, entity => entity.MetaTitle, languageId, false, false);
+                    locale.SeName = _urlRecordService.GetSeName(manufacturer, languageId, false, false);
                 };
             }
 
@@ -216,15 +235,16 @@ namespace Nop.Web.Areas.Admin.Factories
             //prepare grid model
             var model = new ManufacturerProductListModel
             {
-                //fill in model values from the entity
-                Data = productManufacturers.Select(productManufacturer => new ManufacturerProductModel
+                
+                Data = productManufacturers.Select(productManufacturer =>
                 {
-                    Id = productManufacturer.Id,
-                    ManufacturerId = productManufacturer.ManufacturerId,
-                    ProductId = productManufacturer.ProductId,
-                    ProductName = _productService.GetProductById(productManufacturer.ProductId)?.Name,
-                    IsFeaturedProduct = productManufacturer.IsFeaturedProduct,
-                    DisplayOrder = productManufacturer.DisplayOrder
+                    //fill in model values from the entity
+                    var manufacturerProductModel = productManufacturer.ToModel<ManufacturerProductModel>();
+
+                    //fill in additional values (not existing in the entity)
+                    manufacturerProductModel.ProductName = _productService.GetProductById(productManufacturer.ProductId)?.Name;
+
+                    return manufacturerProductModel;
                 }),
                 Total = productManufacturers.TotalCount
             };
@@ -287,7 +307,13 @@ namespace Nop.Web.Areas.Admin.Factories
             var model = new AddProductToManufacturerListModel
             {
                 //fill in model values from the entity
-                Data = products.Select(product => product.ToModel()),
+                Data = products.Select(product =>
+                {
+                    var productModel = product.ToModel<ProductModel>();
+                    productModel.SeName = _urlRecordService.GetSeName(product, 0, true, false);
+
+                    return productModel;
+                }),
                 Total = products.TotalCount
             };
 

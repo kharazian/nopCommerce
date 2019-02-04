@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Nop.Core.Infrastructure;
-using Nop.Services.Logging;
 
 namespace Nop.Services.Tasks
 {
@@ -12,16 +11,6 @@ namespace Nop.Services.Tasks
     /// </summary>
     public partial class TaskManager
     {
-        #region Consts
-
-        /// <summary>
-        /// Schedule task path
-        /// </summary>
-        public const string ScheduleTaskPath = "scheduletask/runtask";
-        private const int _notRunTasksInterval = 60 * 30; //30 minutes
-
-        #endregion
-
         #region Fields
 
         private readonly List<TaskThread> _taskThreads = new List<TaskThread>();
@@ -66,15 +55,13 @@ namespace Nop.Services.Tasks
                 {
                     //seconds left since the last start
                     var secondsLeft = (DateTime.UtcNow - scheduleTask.LastStartUtc).Value.TotalSeconds;
-
-
+                    
                     if (secondsLeft >= scheduleTask.Seconds)
                         //run now (immediately)
                         taskThread.InitSeconds = 0;
-
                     else 
                         //calculate start time
-                        //and round it (so "ensureRunOncePerPeriod" parameter wors fine)
+                        //and round it (so "ensureRunOncePerPeriod" parameter was fine)
                         taskThread.InitSeconds = (int)(scheduleTask.Seconds - secondsLeft) + 1;
                 }
                 else
@@ -115,7 +102,7 @@ namespace Nop.Services.Tasks
         #region Properties
 
         /// <summary>
-        /// Gets the task mamanger instance
+        /// Gets the task manger instance
         /// </summary>
         public static TaskManager Instance { get; } = new TaskManager();
 

@@ -18,27 +18,28 @@ namespace Nop.Web.Factories
 		#region Fields
 
         private readonly ICountryService _countryService;
-        private readonly IStateProvinceService _stateProvinceService;
         private readonly ILocalizationService _localizationService;
-        private readonly IWorkContext _workContext;
+        private readonly IStateProvinceService _stateProvinceService;
         private readonly IStaticCacheManager _cacheManager;
+        private readonly IWorkContext _workContext;
 
 	    #endregion
 
 		#region Ctor
 
-        public CountryModelFactory(ICountryService countryService, 
-            IStateProvinceService stateProvinceService, 
-            ILocalizationService localizationService, 
-            IWorkContext workContext,
-            IStaticCacheManager cacheManager)
-		{
+        public CountryModelFactory(ICountryService countryService,
+
+            ILocalizationService localizationService,
+            IStateProvinceService stateProvinceService,
+            IStaticCacheManager cacheManager,
+            IWorkContext workContext)
+        {
             this._countryService = countryService;
-            this._stateProvinceService = stateProvinceService;
             this._localizationService = localizationService;
-            this._workContext = workContext;
+            this._stateProvinceService = stateProvinceService;
             this._cacheManager = cacheManager;
-		}
+            this._workContext = workContext;
+        }
 
         #endregion
 
@@ -55,7 +56,7 @@ namespace Nop.Web.Factories
             if (string.IsNullOrEmpty(countryId))
                 throw new ArgumentNullException(nameof(countryId));
 
-            var cacheKey = string.Format(ModelCacheEventConsumer.STATEPROVINCES_BY_COUNTRY_MODEL_KEY, countryId, addSelectStateItem, _workContext.WorkingLanguage.Id);
+            var cacheKey = string.Format(NopModelCacheDefaults.StateProvincesByCountryModelKey, countryId, addSelectStateItem, _workContext.WorkingLanguage.Id);
             var cachedModel = _cacheManager.Get(cacheKey, () =>
             {
                 var country = _countryService.GetCountryById(Convert.ToInt32(countryId));
@@ -65,7 +66,7 @@ namespace Nop.Web.Factories
                     result.Add(new StateProvinceModel
                     {
                         id = state.Id,
-                        name = state.GetLocalized(x => x.Name)
+                        name = _localizationService.GetLocalized(state, x => x.Name)
                     });
 
                 if (country == null)

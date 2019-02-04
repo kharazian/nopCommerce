@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Nop.Core.Caching;
 using Nop.Core.Domain.Catalog;
 using Nop.Core.Domain.Discounts;
+using Nop.Core.Domain.Gdpr;
 using Nop.Core.Domain.Logging;
 using Nop.Core.Domain.Orders;
 using Nop.Core.Domain.Payments;
@@ -50,7 +51,7 @@ namespace Nop.Web.Areas.Admin.Factories
         private readonly ILocalizationService _localizationService;
         private readonly IManufacturerService _manufacturerService;
         private readonly IManufacturerTemplateService _manufacturerTemplateService;
-        private readonly IPluginFinder _pluginFinder;
+        private readonly IPluginService _pluginService;
         private readonly IProductTemplateService _productTemplateService;
         private readonly IShippingService _shippingService;
         private readonly IStateProvinceService _stateProvinceService;
@@ -77,7 +78,7 @@ namespace Nop.Web.Areas.Admin.Factories
             ILocalizationService localizationService,
             IManufacturerService manufacturerService,
             IManufacturerTemplateService manufacturerTemplateService,
-            IPluginFinder pluginFinder,
+            IPluginService pluginService,
             IProductTemplateService productTemplateService,
             IShippingService shippingService,
             IStateProvinceService stateProvinceService,
@@ -100,7 +101,7 @@ namespace Nop.Web.Areas.Admin.Factories
             this._localizationService = localizationService;
             this._manufacturerService = manufacturerService;
             this._manufacturerTemplateService = manufacturerTemplateService;
-            this._pluginFinder = pluginFinder;
+            this._pluginService = pluginService;
             this._productTemplateService = productTemplateService;
             this._shippingService = shippingService;
             this._stateProvinceService = stateProvinceService;
@@ -393,7 +394,7 @@ namespace Nop.Web.Areas.Admin.Factories
             }
 
             //insert special item for the default value
-            PrepareDefaultItem(items, withSpecialDefaultItem, 
+            PrepareDefaultItem(items, withSpecialDefaultItem,
                 defaultItemText ?? _localizationService.GetResource("Admin.Configuration.Settings.Tax.TaxCategories.None"));
         }
 
@@ -645,7 +646,7 @@ namespace Nop.Web.Areas.Admin.Factories
         /// <param name="items">Manufacturer template items</param>
         /// <param name="withSpecialDefaultItem">Whether to insert the first special item for the default value</param>
         /// <param name="defaultItemText">Default item text; pass null to use default value of the default item text</param>
-        public virtual void PrepareManufacturerTemplates(IList<SelectListItem> items, 
+        public virtual void PrepareManufacturerTemplates(IList<SelectListItem> items,
             bool withSpecialDefaultItem = true, string defaultItemText = null)
         {
             if (items == null)
@@ -696,7 +697,8 @@ namespace Nop.Web.Areas.Admin.Factories
                 throw new ArgumentNullException(nameof(items));
 
             //prepare available plugin groups
-            var availablePluginGroups = _pluginFinder.GetPluginGroups();
+            var availablePluginGroups = _pluginService.GetPluginDescriptors<IPlugin>(LoadPluginsMode.All)
+                .Select(plugin => plugin.Group).Distinct().OrderBy(groupName => groupName).ToList();
             foreach (var group in availablePluginGroups)
             {
                 items.Add(new SelectListItem { Value = group, Text = group });
@@ -712,7 +714,7 @@ namespace Nop.Web.Areas.Admin.Factories
         /// <param name="items">Return request status items</param>
         /// <param name="withSpecialDefaultItem">Whether to insert the first special item for the default value</param>
         /// <param name="defaultItemText">Default item text; pass null to use default value of the default item text</param>
-        public virtual void PrepareReturnRequestStatuses(IList<SelectListItem> items, 
+        public virtual void PrepareReturnRequestStatuses(IList<SelectListItem> items,
             bool withSpecialDefaultItem = true, string defaultItemText = null)
         {
             if (items == null)
@@ -823,7 +825,7 @@ namespace Nop.Web.Areas.Admin.Factories
         /// <param name="items">Product availability range items</param>
         /// <param name="withSpecialDefaultItem">Whether to insert the first special item for the default value</param>
         /// <param name="defaultItemText">Default item text; pass null to use default value of the default item text</param>
-        public virtual void PrepareProductAvailabilityRanges(IList<SelectListItem> items, 
+        public virtual void PrepareProductAvailabilityRanges(IList<SelectListItem> items,
             bool withSpecialDefaultItem = true, string defaultItemText = null)
         {
             if (items == null)
@@ -840,6 +842,27 @@ namespace Nop.Web.Areas.Admin.Factories
             PrepareDefaultItem(items, withSpecialDefaultItem, defaultItemText);
         }
 
+        /// <summary>
+        /// Prepare available GDPR request types
+        /// </summary>
+        /// <param name="items">Request type items</param>
+        /// <param name="withSpecialDefaultItem">Whether to insert the first special item for the default value</param>
+        /// <param name="defaultItemText">Default item text; pass null to use default value of the default item text</param>
+        public virtual void PrepareGdprRequestTypes(IList<SelectListItem> items, bool withSpecialDefaultItem = true, string defaultItemText = null)
+        {
+            if (items == null)
+                throw new ArgumentNullException(nameof(items));
+
+            //prepare available request types
+            var gdprRequestTypeItems = GdprRequestType.ConsentAgree.ToSelectList(false);
+            foreach (var gdprRequestTypeItem in gdprRequestTypeItems)
+            {
+                items.Add(gdprRequestTypeItem);
+            }
+
+            //insert special item for the default value
+            PrepareDefaultItem(items, withSpecialDefaultItem, defaultItemText);
+        }
         #endregion
     }
 }

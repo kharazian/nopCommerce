@@ -10,9 +10,10 @@ using Nop.Services.Catalog;
 using Nop.Services.Discounts;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
+using Nop.Services.Messages;
 using Nop.Services.Security;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Discounts;
 using Nop.Web.Framework.Controllers;
 using Nop.Web.Framework.Mvc;
@@ -31,6 +32,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly IDiscountService _discountService;
         private readonly ILocalizationService _localizationService;
         private readonly IManufacturerService _manufacturerService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly IProductService _productService;
         private readonly IWebHelper _webHelper;
@@ -46,6 +48,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             IDiscountService discountService,
             ILocalizationService localizationService,
             IManufacturerService manufacturerService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             IProductService productService,
             IWebHelper webHelper)
@@ -57,6 +60,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._discountService = discountService;
             this._localizationService = localizationService;
             this._manufacturerService = manufacturerService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._productService = productService;
             this._webHelper = webHelper;
@@ -96,7 +100,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             //whether discounts are ignored
             if (_catalogSettings.IgnoreDiscounts)
-                WarningNotification(_localizationService.GetResource("Admin.Promotions.Discounts.IgnoreDiscounts.Warning"));
+                _notificationService.WarningNotification(_localizationService.GetResource("Admin.Promotions.Discounts.IgnoreDiscounts.Warning"));
 
             //prepare model
             var model = _discountModelFactory.PrepareDiscountSearchModel(new DiscountSearchModel());
@@ -135,14 +139,14 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var discount = model.ToEntity();
+                var discount = model.ToEntity<Discount>();
                 _discountService.InsertDiscount(discount);
 
                 //activity log
                 _customerActivityService.InsertActivity("AddNewDiscount",
                     string.Format(_localizationService.GetResource("ActivityLog.AddNewDiscount"), discount.Name), discount);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Promotions.Discounts.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Promotions.Discounts.Added"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -197,14 +201,14 @@ namespace Nop.Web.Areas.Admin.Controllers
                 if (prevDiscountType == DiscountType.AssignedToCategories && discount.DiscountType != DiscountType.AssignedToCategories)
                 {
                     //applied to categories
-                    discount.AppliedToCategories.Clear();
+                    discount.DiscountCategoryMappings.Clear();
                     _discountService.UpdateDiscount(discount);
                 }
 
                 if (prevDiscountType == DiscountType.AssignedToManufacturers && discount.DiscountType != DiscountType.AssignedToManufacturers)
                 {
                     //applied to manufacturers
-                    discount.AppliedToManufacturers.Clear();
+                    discount.DiscountManufacturerMappings.Clear();
                     _discountService.UpdateDiscount(discount);
                 }
 
@@ -213,7 +217,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                     //applied to products
                     var products = _discountService.GetProductsWithAppliedDiscount(discount.Id, true);
 
-                    discount.AppliedToProducts.Clear();
+                    discount.DiscountProductMappings.Clear();
                     _discountService.UpdateDiscount(discount);
 
                     //update "HasDiscountsApplied" property
@@ -225,7 +229,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 _customerActivityService.InsertActivity("EditDiscount",
                     string.Format(_localizationService.GetResource("ActivityLog.EditDiscount"), discount.Name), discount);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Promotions.Discounts.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Promotions.Discounts.Updated"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -267,7 +271,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             _customerActivityService.InsertActivity("DeleteDiscount",
                 string.Format(_localizationService.GetResource("ActivityLog.DeleteDiscount"), discount.Name), discount);
 
-            SuccessNotification(_localizationService.GetResource("Admin.Promotions.Discounts.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Promotions.Discounts.Deleted"));
 
             return RedirectToAction("List");
         }
@@ -292,7 +296,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             if (discount == null)
                 throw new ArgumentException("Discount could not be loaded");
 
-            var url = $"{_webHelper.GetStoreLocation()}{discountRequirementRule.GetConfigurationUrl(discount.Id, discountRequirementId)}";
+            var url = discountRequirementRule.GetConfigurationUrl(discount.Id, discountRequirementId);
 
             return Json(new { url });
         }
@@ -457,8 +461,8 @@ namespace Nop.Web.Areas.Admin.Controllers
                 ?? throw new ArgumentException("No product found with the specified id", nameof(productId));
 
             //remove discount
-            if (product.AppliedDiscounts.Count(d => d.Id == discount.Id) > 0)
-                product.AppliedDiscounts.Remove(discount);
+            if (product.DiscountProductMappings.Count(mapping => mapping.DiscountId == discount.Id) > 0)
+                product.DiscountProductMappings.Remove(product.DiscountProductMappings.FirstOrDefault(mapping => mapping.DiscountId == discount.Id));
 
             _productService.UpdateProduct(product);
             _productService.UpdateHasDiscountsApplied(product);
@@ -505,8 +509,8 @@ namespace Nop.Web.Areas.Admin.Controllers
             {
                 foreach (var product in selectedProducts)
                 {
-                    if (product.AppliedDiscounts.Count(d => d.Id == discount.Id) == 0)
-                        product.AppliedDiscounts.Add(discount);
+                    if (product.DiscountProductMappings.Count(mapping => mapping.DiscountId == discount.Id) == 0)
+                        product.DiscountProductMappings.Add(new DiscountProductMapping { Discount = discount });
 
                     _productService.UpdateProduct(product);
                     _productService.UpdateHasDiscountsApplied(product);
@@ -552,8 +556,8 @@ namespace Nop.Web.Areas.Admin.Controllers
                 ?? throw new ArgumentException("No category found with the specified id", nameof(categoryId));
 
             //remove discount
-            if (category.AppliedDiscounts.Count(d => d.Id == discount.Id) > 0)
-                category.AppliedDiscounts.Remove(discount);
+            if (category.DiscountCategoryMappings.Count(mapping => mapping.DiscountId == discount.Id) > 0)
+                category.DiscountCategoryMappings.Remove(category.DiscountCategoryMappings.FirstOrDefault(mapping => mapping.DiscountId == discount.Id));
 
             _categoryService.UpdateCategory(category);
 
@@ -600,8 +604,8 @@ namespace Nop.Web.Areas.Admin.Controllers
                 if (category == null)
                     continue;
 
-                if (category.AppliedDiscounts.Count(d => d.Id == discount.Id) == 0)
-                    category.AppliedDiscounts.Add(discount);
+                if (category.DiscountCategoryMappings.Count(mapping => mapping.DiscountId == discount.Id) == 0)
+                    category.DiscountCategoryMappings.Add(new DiscountCategoryMapping { Discount = discount });
 
                 _categoryService.UpdateCategory(category);
             }
@@ -645,8 +649,8 @@ namespace Nop.Web.Areas.Admin.Controllers
                 ?? throw new ArgumentException("No manufacturer found with the specified id", nameof(manufacturerId));
 
             //remove discount
-            if (manufacturer.AppliedDiscounts.Count(d => d.Id == discount.Id) > 0)
-                manufacturer.AppliedDiscounts.Remove(discount);
+            if (manufacturer.DiscountManufacturerMappings.Count(mapping => mapping.DiscountId == discount.Id) > 0)
+                manufacturer.DiscountManufacturerMappings.Remove(manufacturer.DiscountManufacturerMappings.FirstOrDefault(mapping => mapping.DiscountId == discount.Id));
 
             _manufacturerService.UpdateManufacturer(manufacturer);
 
@@ -693,8 +697,8 @@ namespace Nop.Web.Areas.Admin.Controllers
                 if (manufacturer == null)
                     continue;
 
-                if (manufacturer.AppliedDiscounts.Count(d => d.Id == discount.Id) == 0)
-                    manufacturer.AppliedDiscounts.Add(discount);
+                if (manufacturer.DiscountManufacturerMappings.Count(mapping => mapping.DiscountId == discount.Id) == 0)
+                    manufacturer.DiscountManufacturerMappings.Add(new DiscountManufacturerMapping { Discount = discount });
 
                 _manufacturerService.UpdateManufacturer(manufacturer);
             }

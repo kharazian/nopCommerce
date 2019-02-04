@@ -56,6 +56,16 @@
                                     <span asp-validation-for="ProductSearchAutoCompleteNumberOfProducts"></span>
                                 </div>
                             </div>
+                            <div class="form-group advanced-setting" id="pnlShowLinkToAllResultInSearchAutoComplete">
+                                <div class="col-md-3">
+                                    <nop-override-store-checkbox asp-for="ShowLinkToAllResultInSearchAutoComplete_OverrideForStore" asp-input="ShowLinkToAllResultInSearchAutoComplete" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                                    <nop-label asp-for="ShowLinkToAllResultInSearchAutoComplete" />
+                                </div>
+                                <div class="col-md-9">
+                                    <nop-editor asp-for="ShowLinkToAllResultInSearchAutoComplete" />
+                                    <span asp-validation-for="ShowLinkToAllResultInSearchAutoComplete"></span>
+                                </div>
+                            </div>
                             <div class="form-group advanced-setting" id="pnlShowProductImagesInSearchAutoComplete">
                                 <div class="col-md-3">
                                     <nop-override-store-checkbox asp-for="ShowProductImagesInSearchAutoComplete_OverrideForStore" asp-input="ShowProductImagesInSearchAutoComplete" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
@@ -133,9 +143,11 @@
                             if ($('#@Html.IdFor(model => model.ProductSearchAutoCompleteEnabled)').is(':checked')) {
                                 $('#pnlProductSearchAutoCompleteNumberOfProducts').show();
                                 $('#pnlShowProductImagesInSearchAutoComplete').show();
+                                $('#pnlShowLinkToAllResultInSearchAutoComplete').show();
                             } else {
                                 $('#pnlProductSearchAutoCompleteNumberOfProducts').hide();
                                 $('#pnlShowProductImagesInSearchAutoComplete').hide();
+                                $('#pnlShowLinkToAllResultInSearchAutoComplete').hide();
                             }
                         }
                     </script>
@@ -254,6 +266,7 @@
                         }
                     </script>
                 </div>
+                @await Html.PartialAsync("../ReviewType/List", Model.ReviewTypeSearchModel)
                 <div class="panel panel-default advanced-setting">
                     <div class="panel-heading">
                         @T("Admin.Configuration.Settings.Catalog.BlockTitle.Performance")
@@ -529,6 +542,16 @@
                                 </div>
                             </div>
                         </nop-nested-setting>
+                        <div class="form-group">
+                            <div class="col-md-3">
+                                <nop-override-store-checkbox asp-for="DisplayDatePreOrderAvailability_OverrideForStore" asp-input="DisplayDatePreOrderAvailability" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                                <nop-label asp-for="DisplayDatePreOrderAvailability" />
+                            </div>
+                            <div class="col-md-9">
+                                <nop-editor asp-for="DisplayDatePreOrderAvailability" />
+                                <span asp-validation-for="DisplayDatePreOrderAvailability"></span>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="panel panel-default advanced-setting">
@@ -636,7 +659,7 @@
                                 <nop-label asp-for="DefaultViewMode" />
                             </div>
                             <div class="col-md-9">
-                                <nop-select asp-for="DefaultViewMode" asp-items="Model.AvailableViewModes"/>
+                                <nop-select asp-for="DefaultViewMode" asp-items="Model.AvailableViewModes" />
                                 <span asp-validation-for="DefaultViewMode"></span>
                             </div>
                         </div>
@@ -740,7 +763,7 @@
                                     <span asp-validation-for="ProductsByTagPageSizeOptions"></span>
                                 </div>
                             </div>
-                        </nop-nested-setting>                        
+                        </nop-nested-setting>
                     </div>
 
                     <script>
@@ -922,8 +945,8 @@
                             <div class="col-md-9">
                                 <nop-editor asp-for="ExportImportProductCategoryBreadcrumb" />
                                 <span asp-validation-for="ExportImportProductCategoryBreadcrumb"></span>
-							</div>
-						</div>
+                            </div>
+                        </div>
                         <div class="form-group">
                             <div class="col-md-3">
                                 <nop-override-store-checkbox asp-for="ExportImportCategoriesUsingCategoryName_OverrideForStore" asp-input="ExportImportCategoriesUsingCategoryName" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
@@ -952,6 +975,26 @@
                             <div class="col-md-9">
                                 <nop-editor asp-for="ExportImportSplitProductsFile" />
                                 <span asp-validation-for="ExportImportSplitProductsFile"></span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-md-3">
+                                <nop-override-store-checkbox asp-for="ExportImportRelatedEntitiesByName_OverrideForStore" asp-input="ExportImportRelatedEntitiesByName" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                                <nop-label asp-for="ExportImportRelatedEntitiesByName" />
+                            </div>
+                            <div class="col-md-9">
+                                <nop-editor asp-for="ExportImportRelatedEntitiesByName" />
+                                <span asp-validation-for="ExportImportRelatedEntitiesByName"></span>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <div class="col-md-3">
+                                <nop-override-store-checkbox asp-for="ExportImportProductUseLimitedToStores_OverrideForStore" asp-input="ExportImportProductUseLimitedToStores" asp-store-scope="@Model.ActiveStoreScopeConfiguration" />
+                                <nop-label asp-for="ExportImportProductUseLimitedToStores" />
+                            </div>
+                            <div class="col-md-9">
+                                <nop-editor asp-for="ExportImportProductUseLimitedToStores" />
+                                <span asp-validation-for="ExportImportProductUseLimitedToStores"></span>
                             </div>
                         </div>
                     </div>

@@ -1,26 +1,29 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Nop.Core.Caching;
+using Microsoft.Extensions.Caching.Memory;
+using Moq;
+using Nop.Core;
 using Nop.Core.Data;
 using Nop.Core.Domain.Directory;
+using Nop.Services.Customers;
 using Nop.Services.Directory;
 using Nop.Services.Events;
+using Nop.Services.Logging;
 using Nop.Services.Plugins;
 using Nop.Services.Stores;
 using Nop.Tests;
 using NUnit.Framework;
-using Rhino.Mocks;
 
 namespace Nop.Services.Tests.Directory
 {
     [TestFixture]
     public class CurrencyServiceTests : ServiceTest
     {
-        private IRepository<Currency> _currencyRepository;
-        private IStoreMappingService _storeMappingService;
+        private Mock<IRepository<Currency>> _currencyRepository;
+        private Mock<IStoreMappingService> _storeMappingService;
         private CurrencySettings _currencySettings;
-        private IEventPublisher _eventPublisher;
+        private Mock<IEventPublisher> _eventPublisher;
         private ICurrencyService _currencyService;
 
         private Currency currencyUSD, currencyRUR, currencyEUR;
@@ -70,15 +73,15 @@ namespace Nop.Services.Tests.Directory
                 UpdatedOnUtc = DateTime.UtcNow,
                 RoundingType = RoundingType.Rounding001
             };
-            _currencyRepository = MockRepository.GenerateMock<IRepository<Currency>>();
-            _currencyRepository.Expect(x => x.Table).Return(new List<Currency> { currencyUSD, currencyEUR, currencyRUR }.AsQueryable());
-            _currencyRepository.Expect(x => x.GetById(currencyUSD.Id)).Return(currencyUSD);
-            _currencyRepository.Expect(x => x.GetById(currencyEUR.Id)).Return(currencyEUR);
-            _currencyRepository.Expect(x => x.GetById(currencyRUR.Id)).Return(currencyRUR);
+            _currencyRepository = new Mock<IRepository<Currency>>();
+            _currencyRepository.Setup(x => x.Table).Returns(new List<Currency> { currencyUSD, currencyEUR, currencyRUR }.AsQueryable());
+            _currencyRepository.Setup(x => x.GetById(currencyUSD.Id)).Returns(currencyUSD);
+            _currencyRepository.Setup(x => x.GetById(currencyEUR.Id)).Returns(currencyEUR);
+            _currencyRepository.Setup(x => x.GetById(currencyRUR.Id)).Returns(currencyRUR);
 
-            _storeMappingService = MockRepository.GenerateMock<IStoreMappingService>();
+            _storeMappingService = new Mock<IStoreMappingService>();
 
-            var cacheManager = new NopNullCache();
+            var cacheManager = new TestMemoryCacheManager(new Mock<IMemoryCache>().Object);
 
             _currencySettings = new CurrencySettings
             {
@@ -86,13 +89,15 @@ namespace Nop.Services.Tests.Directory
                 PrimaryExchangeRateCurrencyId = currencyEUR.Id
             };
 
-            _eventPublisher = MockRepository.GenerateMock<IEventPublisher>();
-            _eventPublisher.Expect(x => x.Publish(Arg<object>.Is.Anything));
+            _eventPublisher = new Mock<IEventPublisher>();
+            _eventPublisher.Setup(x => x.Publish(It.IsAny<object>()));
             
-            var pluginFinder = new PluginFinder(_eventPublisher);
-            _currencyService = new CurrencyService(cacheManager,
-                _currencyRepository, _storeMappingService, 
-                _currencySettings, pluginFinder, _eventPublisher);
+            var customerService = new Mock<ICustomerService>();
+            var loger = new Mock<ILogger>();
+            var webHelper = new Mock<IWebHelper>();
+
+            var pluginService = new PluginService(customerService.Object, loger.Object , CommonHelper.DefaultFileProvider, webHelper.Object);
+            _currencyService = new CurrencyService(_currencySettings, _eventPublisher.Object, pluginService, _currencyRepository.Object, cacheManager, _storeMappingService.Object);
         }
         
         [Test]
@@ -100,7 +105,7 @@ namespace Nop.Services.Tests.Directory
         {
             var providers = _currencyService.LoadAllExchangeRateProviders();
             providers.ShouldNotBeNull();
-            (providers.Any()).ShouldBeTrue();
+            providers.Any().ShouldBeTrue();
         }
 
         [Test]

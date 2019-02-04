@@ -74,7 +74,7 @@ namespace Nop.Web.Framework.Mvc.Filters
                 if (!context.HttpContext.Request.Method.Equals(WebRequestMethods.Http.Get, StringComparison.InvariantCultureIgnoreCase))
                     return;
 
-                if (!DataSettingsHelper.DatabaseIsInstalled())
+                if (!DataSettingsManager.DatabaseIsInstalled)
                     return;
 
                 //check whether we store IP addresses
@@ -85,9 +85,10 @@ namespace Nop.Web.Framework.Mvc.Filters
                 var currentIpAddress = _webHelper.GetCurrentIpAddress();
                 if (string.IsNullOrEmpty(currentIpAddress))
                     return;
-                
+
                 //update customer's IP address
-                if (!currentIpAddress.Equals(_workContext.CurrentCustomer.LastIpAddress, StringComparison.InvariantCultureIgnoreCase))
+                if (_workContext.OriginalCustomerIfImpersonated == null &&
+                     !currentIpAddress.Equals(_workContext.CurrentCustomer.LastIpAddress, StringComparison.InvariantCultureIgnoreCase))
                 {
                     _workContext.CurrentCustomer.LastIpAddress = currentIpAddress;
                     _customerService.UpdateCustomer(_workContext.CurrentCustomer);

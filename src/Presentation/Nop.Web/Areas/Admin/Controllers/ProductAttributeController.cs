@@ -4,9 +4,10 @@ using Nop.Core.Domain.Catalog;
 using Nop.Services.Catalog;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
+using Nop.Services.Messages;
 using Nop.Services.Security;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Catalog;
 using Nop.Web.Framework.Mvc;
 using Nop.Web.Framework.Mvc.Filters;
@@ -20,6 +21,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly ICustomerActivityService _customerActivityService;
         private readonly ILocalizationService _localizationService;
         private readonly ILocalizedEntityService _localizedEntityService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly IProductAttributeModelFactory _productAttributeModelFactory;
         private readonly IProductAttributeService _productAttributeService;
@@ -31,6 +33,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         public ProductAttributeController(ICustomerActivityService customerActivityService,
             ILocalizationService localizationService,
             ILocalizedEntityService localizedEntityService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             IProductAttributeModelFactory productAttributeModelFactory,
             IProductAttributeService productAttributeService)
@@ -38,6 +41,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._customerActivityService = customerActivityService;
             this._localizationService = localizationService;
             this._localizedEntityService = localizedEntityService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._productAttributeModelFactory = productAttributeModelFactory;
             this._productAttributeService = productAttributeService;
@@ -127,7 +131,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var productAttribute = model.ToEntity();
+                var productAttribute = model.ToEntity<ProductAttribute>();
                 _productAttributeService.InsertProductAttribute(productAttribute);
                 UpdateLocales(productAttribute, model);
 
@@ -135,7 +139,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 _customerActivityService.InsertActivity("AddNewProductAttribute",
                     string.Format(_localizationService.GetResource("ActivityLog.AddNewProductAttribute"), productAttribute.Name), productAttribute);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Catalog.Attributes.ProductAttributes.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Catalog.Attributes.ProductAttributes.Added"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -191,7 +195,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 _customerActivityService.InsertActivity("EditProductAttribute",
                     string.Format(_localizationService.GetResource("ActivityLog.EditProductAttribute"), productAttribute.Name), productAttribute);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Catalog.Attributes.ProductAttributes.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Catalog.Attributes.ProductAttributes.Updated"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -226,7 +230,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             _customerActivityService.InsertActivity("DeleteProductAttribute",
                 string.Format(_localizationService.GetResource("ActivityLog.DeleteProductAttribute"), productAttribute.Name), productAttribute);
 
-            SuccessNotification(_localizationService.GetResource("Admin.Catalog.Attributes.ProductAttributes.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Catalog.Attributes.ProductAttributes.Deleted"));
 
             return RedirectToAction("List");
         }
@@ -299,17 +303,8 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var ppav = new PredefinedProductAttributeValue
-                {
-                    ProductAttributeId = model.ProductAttributeId,
-                    Name = model.Name,
-                    PriceAdjustment = model.PriceAdjustment,
-                    PriceAdjustmentUsePercentage = model.PriceAdjustmentUsePercentage,
-                    WeightAdjustment = model.WeightAdjustment,
-                    Cost = model.Cost,
-                    IsPreSelected = model.IsPreSelected,
-                    DisplayOrder = model.DisplayOrder
-                };
+                //fill entity from model
+                var ppav = model.ToEntity<PredefinedProductAttributeValue>();
 
                 _productAttributeService.InsertPredefinedProductAttributeValue(ppav);
                 UpdateLocales(ppav, model);
@@ -361,13 +356,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                productAttributeValue.Name = model.Name;
-                productAttributeValue.PriceAdjustment = model.PriceAdjustment;
-                productAttributeValue.PriceAdjustmentUsePercentage = model.PriceAdjustmentUsePercentage;
-                productAttributeValue.WeightAdjustment = model.WeightAdjustment;
-                productAttributeValue.Cost = model.Cost;
-                productAttributeValue.IsPreSelected = model.IsPreSelected;
-                productAttributeValue.DisplayOrder = model.DisplayOrder;
+                productAttributeValue = model.ToEntity(productAttributeValue);
                 _productAttributeService.UpdatePredefinedProductAttributeValue(productAttributeValue);
 
                 UpdateLocales(productAttributeValue, model);

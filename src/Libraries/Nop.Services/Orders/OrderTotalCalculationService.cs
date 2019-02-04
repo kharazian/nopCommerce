@@ -26,87 +26,63 @@ namespace Nop.Services.Orders
     {
         #region Fields
 
-        private readonly IWorkContext _workContext;
-        private readonly IStoreContext _storeContext;
-        private readonly IPriceCalculationService _priceCalculationService;
-        private readonly IProductService _productService;
-        private readonly IProductAttributeParser _productAttributeParser;
-        private readonly ITaxService _taxService;
-        private readonly IShippingService _shippingService;
-        private readonly IPaymentService _paymentService;
+        private readonly CatalogSettings _catalogSettings;
         private readonly ICheckoutAttributeParser _checkoutAttributeParser;
         private readonly IDiscountService _discountService;
-        private readonly IGiftCardService _giftCardService;
         private readonly IGenericAttributeService _genericAttributeService;
+        private readonly IGiftCardService _giftCardService;
+        private readonly IPaymentService _paymentService;
+        private readonly IPriceCalculationService _priceCalculationService;
         private readonly IRewardPointService _rewardPointService;
-        private readonly TaxSettings _taxSettings;
+        private readonly IShippingService _shippingService;
+        private readonly IShoppingCartService _shoppingCartService;
+        private readonly IStoreContext _storeContext;
+        private readonly ITaxService _taxService;
+        private readonly IWorkContext _workContext;
         private readonly RewardPointsSettings _rewardPointsSettings;
         private readonly ShippingSettings _shippingSettings;
         private readonly ShoppingCartSettings _shoppingCartSettings;
-        private readonly CatalogSettings _catalogSettings;
+        private readonly TaxSettings _taxSettings;
 
         #endregion
 
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="workContext">Work context</param>
-        /// <param name="storeContext">Store context</param>
-        /// <param name="priceCalculationService">Price calculation service</param>
-        /// <param name="productService">Product service</param>
-        /// <param name="productAttributeParser">Product attribute parser</param>
-        /// <param name="taxService">Tax service</param>
-        /// <param name="shippingService">Shipping service</param>
-        /// <param name="paymentService">Payment service</param>
-        /// <param name="checkoutAttributeParser">Checkout attribute parser</param>
-        /// <param name="discountService">Discount service</param>
-        /// <param name="giftCardService">Gift card service</param>
-        /// <param name="genericAttributeService">Generic attribute service</param>
-        /// <param name="rewardPointService">Reward point service</param>
-        /// <param name="taxSettings">Tax settings</param>
-        /// <param name="rewardPointsSettings">Reward points settings</param>
-        /// <param name="shippingSettings">Shipping settings</param>
-        /// <param name="shoppingCartSettings">Shopping cart settings</param>
-        /// <param name="catalogSettings">Catalog settings</param>
-        public OrderTotalCalculationService(IWorkContext workContext,
-            IStoreContext storeContext,
-            IPriceCalculationService priceCalculationService,
-            IProductService productService,
-            IProductAttributeParser productAttributeParser,
-            ITaxService taxService,
-            IShippingService shippingService,
-            IPaymentService paymentService,
+        public OrderTotalCalculationService(CatalogSettings catalogSettings,
             ICheckoutAttributeParser checkoutAttributeParser,
             IDiscountService discountService,
-            IGiftCardService giftCardService,
             IGenericAttributeService genericAttributeService,
+            IGiftCardService giftCardService,
+            IPaymentService paymentService,
+            IPriceCalculationService priceCalculationService,
             IRewardPointService rewardPointService,
-            TaxSettings taxSettings,
+            IShippingService shippingService,
+            IShoppingCartService shoppingCartService,
+            IStoreContext storeContext,
+            ITaxService taxService,
+            IWorkContext workContext,
             RewardPointsSettings rewardPointsSettings,
             ShippingSettings shippingSettings,
             ShoppingCartSettings shoppingCartSettings,
-            CatalogSettings catalogSettings)
+            TaxSettings taxSettings)
         {
-            this._workContext = workContext;
-            this._storeContext = storeContext;
-            this._priceCalculationService = priceCalculationService;
-            this._productService = productService;
-            this._productAttributeParser = productAttributeParser;
-            this._taxService = taxService;
-            this._shippingService = shippingService;
-            this._paymentService = paymentService;
+            this._catalogSettings = catalogSettings;
             this._checkoutAttributeParser = checkoutAttributeParser;
             this._discountService = discountService;
-            this._giftCardService = giftCardService;
             this._genericAttributeService = genericAttributeService;
+            this._giftCardService = giftCardService;
+            this._paymentService = paymentService;
+            this._priceCalculationService = priceCalculationService;
             this._rewardPointService = rewardPointService;
-            this._taxSettings = taxSettings;
             this._rewardPointsSettings = rewardPointsSettings;
+            this._shippingService = shippingService;
+            this._shoppingCartService = shoppingCartService;
+            this._storeContext = storeContext;
+            this._taxService = taxService;
+            this._workContext = workContext;
             this._shippingSettings = shippingSettings;
             this._shoppingCartSettings = shoppingCartSettings;
-            this._catalogSettings = catalogSettings;
+            this._taxSettings = taxSettings;
         }
 
         #endregion
@@ -131,14 +107,16 @@ namespace Nop.Services.Orders
             var allDiscounts = _discountService.GetAllDiscountsForCaching(DiscountType.AssignedToOrderSubTotal);
             var allowedDiscounts = new List<DiscountForCaching>();
             if (allDiscounts != null)
+            {
                 foreach (var discount in allDiscounts)
-                    if (_discountService.ValidateDiscount(discount, customer).IsValid &&
-                        !allowedDiscounts.ContainsDiscount(discount))
+                    if (!_discountService.ContainsDiscount(allowedDiscounts, discount) &&
+                        _discountService.ValidateDiscount(discount, customer).IsValid)
                     {
                         allowedDiscounts.Add(discount);
                     }
-
-            appliedDiscounts = allowedDiscounts.GetPreferredDiscount(orderSubTotal, out discountAmount);
+            }
+                
+            appliedDiscounts = _discountService.GetPreferredDiscount(allowedDiscounts, orderSubTotal, out discountAmount);
 
             if (discountAmount < decimal.Zero)
                 discountAmount = decimal.Zero;
@@ -164,19 +142,19 @@ namespace Nop.Services.Orders
             var allowedDiscounts = new List<DiscountForCaching>();
             if (allDiscounts != null)
                 foreach (var discount in allDiscounts)
-                    if (_discountService.ValidateDiscount(discount, customer).IsValid &&
-                        !allowedDiscounts.ContainsDiscount(discount))
+                    if (!_discountService.ContainsDiscount(allowedDiscounts, discount) &&
+                        _discountService.ValidateDiscount(discount, customer).IsValid)
                     {
                         allowedDiscounts.Add(discount);
                     }
 
-            appliedDiscounts = allowedDiscounts.GetPreferredDiscount(shippingTotal, out shippingDiscountAmount);
+            appliedDiscounts = _discountService.GetPreferredDiscount(allowedDiscounts, shippingTotal, out shippingDiscountAmount);
 
             if (shippingDiscountAmount < decimal.Zero)
                 shippingDiscountAmount = decimal.Zero;
 
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                shippingDiscountAmount = RoundingHelper.RoundPrice(shippingDiscountAmount);
+                shippingDiscountAmount = _priceCalculationService.RoundPrice(shippingDiscountAmount);
 
             return shippingDiscountAmount;
         }
@@ -199,19 +177,19 @@ namespace Nop.Services.Orders
             var allowedDiscounts = new List<DiscountForCaching>();
             if (allDiscounts != null)
                 foreach (var discount in allDiscounts)
-                    if (_discountService.ValidateDiscount(discount, customer).IsValid &&
-                        !allowedDiscounts.ContainsDiscount(discount))
+                    if (!_discountService.ContainsDiscount(allowedDiscounts, discount) &&
+                        _discountService.ValidateDiscount(discount, customer).IsValid)
                     {
                         allowedDiscounts.Add(discount);
                     }
 
-            appliedDiscounts = allowedDiscounts.GetPreferredDiscount(orderTotal, out discountAmount);
+            appliedDiscounts = _discountService.GetPreferredDiscount(allowedDiscounts, orderTotal, out discountAmount);
 
             if (discountAmount < decimal.Zero)
                 discountAmount = decimal.Zero;
 
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                discountAmount = RoundingHelper.RoundPrice(discountAmount);
+                discountAmount = _priceCalculationService.RoundPrice(discountAmount);
 
             return discountAmount;
         }
@@ -226,14 +204,14 @@ namespace Nop.Services.Orders
         /// <param name="updatedOrder">Order</param>
         /// <param name="taxTotal">Tax</param>
         /// <param name="customer">Customer</param>
-        protected virtual void UpdateTotal(UpdateOrderParameters updateOrderParameters, decimal subTotalExclTax, 
+        protected virtual void UpdateTotal(UpdateOrderParameters updateOrderParameters, decimal subTotalExclTax,
             decimal discountAmountExclTax, decimal shippingTotalExclTax, Order updatedOrder, decimal taxTotal, Customer customer)
         {
             var total = subTotalExclTax - discountAmountExclTax + shippingTotalExclTax + updatedOrder.PaymentMethodAdditionalFeeExclTax + taxTotal;
 
             //get discounts for the order total
             var discountAmountTotal =
-                GetOrderTotalDiscount(customer, total, out List<DiscountForCaching> orderAppliedDiscounts);
+                GetOrderTotalDiscount(customer, total, out var orderAppliedDiscounts);
             if (total < discountAmountTotal)
                 discountAmountTotal = total;
             total -= discountAmountTotal;
@@ -241,13 +219,13 @@ namespace Nop.Services.Orders
             //applied giftcards
             foreach (var giftCard in _giftCardService.GetAllGiftCards(usedWithOrderId: updatedOrder.Id))
             {
-                if (total > decimal.Zero)
-                {
-                    var remainingAmount = giftCard.GiftCardUsageHistory
-                        .Where(history => history.UsedWithOrderId == updatedOrder.Id).Sum(history => history.UsedValue);
-                    var amountCanBeUsed = total > remainingAmount ? remainingAmount : total;
-                    total -= amountCanBeUsed;
-                }
+                if (total <= decimal.Zero) 
+                    continue;
+
+                var remainingAmount = giftCard.GiftCardUsageHistory
+                    .Where(history => history.UsedWithOrderId == updatedOrder.Id).Sum(history => history.UsedValue);
+                var amountCanBeUsed = total > remainingAmount ? remainingAmount : total;
+                total -= amountCanBeUsed;
             }
 
             //reward points
@@ -262,6 +240,7 @@ namespace Nop.Services.Orders
                     rewardPoints = ConvertAmountToRewardPoints(total);
                     rewardPointsAmount = total;
                 }
+
                 if (total > decimal.Zero)
                     total -= rewardPointsAmount;
 
@@ -281,13 +260,13 @@ namespace Nop.Services.Orders
             if (total < decimal.Zero)
                 total = decimal.Zero;
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                total = RoundingHelper.RoundPrice(total);
+                total = _priceCalculationService.RoundPrice(total);
 
             updatedOrder.OrderDiscount = discountAmountTotal;
             updatedOrder.OrderTotal = total;
 
             foreach (var discount in orderAppliedDiscounts)
-                if (!updateOrderParameters.AppliedDiscounts.ContainsDiscount(discount))
+                if (!_discountService.ContainsDiscount(updateOrderParameters.AppliedDiscounts, discount))
                     updateOrderParameters.AppliedDiscounts.Add(discount);
         }
 
@@ -368,7 +347,7 @@ namespace Nop.Services.Orders
 
             //round tax
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                taxTotal = RoundingHelper.RoundPrice(taxTotal);
+                taxTotal = _priceCalculationService.RoundPrice(taxTotal);
 
             updatedOrder.OrderTax = taxTotal;
             updatedOrder.TaxRates = taxRates.Aggregate(string.Empty, (current, next) =>
@@ -388,14 +367,14 @@ namespace Nop.Services.Orders
         /// <param name="shippingTotalInclTax">Shipping (incl tax)</param>
         /// <param name="shippingTaxRate">Shipping tax rate</param>
         /// <returns>Shipping total</returns>
-        protected virtual decimal UpdateShipping(UpdateOrderParameters updateOrderParameters, IList<ShoppingCartItem> restoredCart, 
+        protected virtual decimal UpdateShipping(UpdateOrderParameters updateOrderParameters, IList<ShoppingCartItem> restoredCart,
             decimal subTotalInclTax, decimal subTotalExclTax, Order updatedOrder, Customer customer, out decimal shippingTotalInclTax, out decimal shippingTaxRate)
         {
             var shippingTotalExclTax = decimal.Zero;
             shippingTotalInclTax = decimal.Zero;
             shippingTaxRate = decimal.Zero;
 
-            if (restoredCart.RequiresShipping(_productService, _productAttributeParser))
+            if (_shoppingCartService.ShoppingCartRequiresShipping(restoredCart))
             {
                 if (!IsFreeShipping(restoredCart, _shippingSettings.FreeShippingOverXIncludingTax ? subTotalInclTax : subTotalExclTax))
                 {
@@ -504,8 +483,8 @@ namespace Nop.Services.Orders
                     //rounding
                     if (_shoppingCartSettings.RoundPricesDuringCalculation)
                     {
-                        shippingTotalExclTax = RoundingHelper.RoundPrice(shippingTotalExclTax);
-                        shippingTotalInclTax = RoundingHelper.RoundPrice(shippingTotalInclTax);
+                        shippingTotalExclTax = _priceCalculationService.RoundPrice(shippingTotalExclTax);
+                        shippingTotalInclTax = _priceCalculationService.RoundPrice(shippingTotalInclTax);
                     }
 
                     //change shipping status
@@ -516,7 +495,7 @@ namespace Nop.Services.Orders
                         updatedOrder.ShippingStatus = ShippingStatus.PartiallyShipped;
 
                     foreach (var discount in shippingTotalDiscounts)
-                        if (!updateOrderParameters.AppliedDiscounts.ContainsDiscount(discount))
+                        if (!_discountService.ContainsDiscount(updateOrderParameters.AppliedDiscounts, discount))
                             updateOrderParameters.AppliedDiscounts.Add(discount);
                 }
             }
@@ -540,8 +519,8 @@ namespace Nop.Services.Orders
         /// <param name="subTotalTaxRates">Subtotal tax rates</param>
         /// <param name="discountAmountExclTax">Discount amount (excl tax)</param>
         /// <returns>Subtotal</returns>
-        protected virtual decimal UpdateSubTotal(UpdateOrderParameters updateOrderParameters, IList<ShoppingCartItem> restoredCart, 
-            OrderItem updatedOrderItem, Order updatedOrder, Customer customer, 
+        protected virtual decimal UpdateSubTotal(UpdateOrderParameters updateOrderParameters, IList<ShoppingCartItem> restoredCart,
+            OrderItem updatedOrderItem, Order updatedOrder, Customer customer,
             out decimal subTotalInclTax, out SortedDictionary<decimal, decimal> subTotalTaxRates, out decimal discountAmountExclTax)
         {
             var subTotalExclTax = decimal.Zero;
@@ -553,8 +532,7 @@ namespace Nop.Services.Orders
                 decimal itemSubTotalExclTax;
                 decimal itemSubTotalInclTax;
                 decimal taxRate;
-                var itemDiscounts = new List<DiscountForCaching>();
-
+                
                 //calculate subtotal for the updated order item
                 if (shoppingCartItem.Id == updatedOrderItem.Id)
                 {
@@ -567,32 +545,29 @@ namespace Nop.Services.Orders
                     updatedOrderItem.PriceInclTax = itemSubTotalInclTax = updateOrderParameters.SubTotalInclTax;
                     updatedOrderItem.Quantity = shoppingCartItem.Quantity;
 
-                    taxRate = Math.Round((100 * (itemSubTotalInclTax - itemSubTotalExclTax)) / itemSubTotalExclTax, 3);
+                    taxRate = itemSubTotalExclTax > 0 ? Math.Round(100 * (itemSubTotalInclTax - itemSubTotalExclTax) / itemSubTotalExclTax, 3) : taxRate = 0M;
                 }
                 else
                 {
                     //get the already calculated subtotal from the order item
                     itemSubTotalExclTax = updatedOrder.OrderItems.FirstOrDefault(item => item.Id == shoppingCartItem.Id).PriceExclTax;
                     itemSubTotalInclTax = updatedOrder.OrderItems.FirstOrDefault(item => item.Id == shoppingCartItem.Id).PriceInclTax;
-                    taxRate = Math.Round((100 * (itemSubTotalInclTax - itemSubTotalExclTax)) / itemSubTotalExclTax, 3);
-                }
 
-                foreach (var discount in itemDiscounts)
-                    if (!updateOrderParameters.AppliedDiscounts.ContainsDiscount(discount))
-                        updateOrderParameters.AppliedDiscounts.Add(discount);
+                     taxRate = itemSubTotalExclTax > 0 ? Math.Round(100 * (itemSubTotalInclTax - itemSubTotalExclTax) / itemSubTotalExclTax, 3) : taxRate = 0M;
+                }
 
                 subTotalExclTax += itemSubTotalExclTax;
                 subTotalInclTax += itemSubTotalInclTax;
 
                 //tax rates
                 var itemTaxValue = itemSubTotalInclTax - itemSubTotalExclTax;
-                if (taxRate > decimal.Zero && itemTaxValue > decimal.Zero)
-                {
-                    if (!subTotalTaxRates.ContainsKey(taxRate))
-                        subTotalTaxRates.Add(taxRate, itemTaxValue);
-                    else
-                        subTotalTaxRates[taxRate] = subTotalTaxRates[taxRate] + itemTaxValue;
-                }
+                if (taxRate <= decimal.Zero || itemTaxValue <= decimal.Zero) 
+                    continue;
+
+                if (!subTotalTaxRates.ContainsKey(taxRate))
+                    subTotalTaxRates.Add(taxRate, itemTaxValue);
+                else
+                    subTotalTaxRates[taxRate] = subTotalTaxRates[taxRate] + itemTaxValue;
             }
 
             if (subTotalExclTax < decimal.Zero)
@@ -603,7 +578,7 @@ namespace Nop.Services.Orders
 
             //We calculate discount amount on order subtotal excl tax (discount first)
             //calculate discount amount ('Applied to order subtotal' discount)
-            discountAmountExclTax = GetOrderSubtotalDiscount(customer, subTotalExclTax, out List<DiscountForCaching> subTotalDiscounts);
+            discountAmountExclTax = GetOrderSubtotalDiscount(customer, subTotalExclTax, out var subTotalDiscounts);
             if (subTotalExclTax < discountAmountExclTax)
                 discountAmountExclTax = subTotalExclTax;
             var discountAmountInclTax = discountAmountExclTax;
@@ -612,21 +587,21 @@ namespace Nop.Services.Orders
             var tempTaxRates = new Dictionary<decimal, decimal>(subTotalTaxRates);
             foreach (var kvp in tempTaxRates)
             {
-                if (kvp.Value != decimal.Zero && subTotalExclTax > decimal.Zero)
-                {
-                    var discountTaxValue = kvp.Value * (discountAmountExclTax / subTotalExclTax);
-                    discountAmountInclTax += discountTaxValue;
-                    subTotalTaxRates[kvp.Key] = kvp.Value - discountTaxValue;
-                }
+                if (kvp.Value == decimal.Zero || subTotalExclTax <= decimal.Zero) 
+                    continue;
+
+                var discountTaxValue = kvp.Value * (discountAmountExclTax / subTotalExclTax);
+                discountAmountInclTax += discountTaxValue;
+                subTotalTaxRates[kvp.Key] = kvp.Value - discountTaxValue;
             }
 
             //rounding
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
             {
-                subTotalExclTax = RoundingHelper.RoundPrice(subTotalExclTax);
-                subTotalInclTax = RoundingHelper.RoundPrice(subTotalInclTax);
-                discountAmountExclTax = RoundingHelper.RoundPrice(discountAmountExclTax);
-                discountAmountInclTax = RoundingHelper.RoundPrice(discountAmountInclTax);
+                subTotalExclTax = _priceCalculationService.RoundPrice(subTotalExclTax);
+                subTotalInclTax = _priceCalculationService.RoundPrice(subTotalInclTax);
+                discountAmountExclTax = _priceCalculationService.RoundPrice(discountAmountExclTax);
+                discountAmountInclTax = _priceCalculationService.RoundPrice(discountAmountInclTax);
             }
 
             updatedOrder.OrderSubtotalExclTax = subTotalExclTax;
@@ -635,7 +610,7 @@ namespace Nop.Services.Orders
             updatedOrder.OrderSubTotalDiscountInclTax = discountAmountInclTax;
 
             foreach (var discount in subTotalDiscounts)
-                if (!updateOrderParameters.AppliedDiscounts.ContainsDiscount(discount))
+                if (!_discountService.ContainsDiscount(updateOrderParameters.AppliedDiscounts, discount))
                     updateOrderParameters.AppliedDiscounts.Add(discount);
             return subTotalExclTax;
         }
@@ -648,21 +623,21 @@ namespace Nop.Services.Orders
         /// <param name="useRewardPoints">A value indicating whether to use reward points</param>
         /// <param name="customer">Customer</param>
         /// <param name="orderTotal">Order total</param>
-        protected virtual void SetRewardPoints(ref int redeemedRewardPoints, ref decimal redeemedRewardPointsAmount, 
+        protected virtual void SetRewardPoints(ref int redeemedRewardPoints, ref decimal redeemedRewardPointsAmount,
             bool? useRewardPoints, Customer customer, decimal orderTotal)
         {
             if (!_rewardPointsSettings.Enabled)
                 return;
 
             if (!useRewardPoints.HasValue)
-                useRewardPoints = customer.GetAttribute<bool>(SystemCustomerAttributeNames.UseRewardPointsDuringCheckout, _genericAttributeService, _storeContext.CurrentStore.Id);
+                useRewardPoints = _genericAttributeService.GetAttribute<bool>(customer, NopCustomerDefaults.UseRewardPointsDuringCheckoutAttribute, _storeContext.CurrentStore.Id);
 
             if (!useRewardPoints.Value)
                 return;
 
             var rewardPointsBalance = _rewardPointService.GetRewardPointsBalance(customer.Id, _storeContext.CurrentStore.Id);
             rewardPointsBalance = _rewardPointService.GetReducedPointsBalance(rewardPointsBalance);
-            
+
             if (!CheckMinimumRewardPointsToUseRequirement(rewardPointsBalance))
                 return;
 
@@ -690,10 +665,10 @@ namespace Nop.Services.Orders
         /// <param name="appliedGiftCards">Applied gift cards</param>
         /// <param name="customer">Customer</param>
         /// <param name="resultTemp"></param>
-        protected virtual void AppliedGiftCards(IList<ShoppingCartItem> cart, List<AppliedGiftCard> appliedGiftCards, 
+        protected virtual void AppliedGiftCards(IList<ShoppingCartItem> cart, List<AppliedGiftCard> appliedGiftCards,
             Customer customer, ref decimal resultTemp)
         {
-            if (cart.IsRecurring())
+            if (_shoppingCartService.ShoppingCartIsRecurring(cart))
                 return;
 
             //we don't apply gift cards for recurring products
@@ -705,7 +680,7 @@ namespace Nop.Services.Orders
             {
                 if (resultTemp <= decimal.Zero) continue;
 
-                var remainingAmount = gc.GetGiftCardRemainingAmount();
+                var remainingAmount = _giftCardService.GetGiftCardRemainingAmount(gc);
                 var amountCanBeUsed = resultTemp > remainingAmount ? remainingAmount : resultTemp;
 
                 //reduce subtotal
@@ -739,7 +714,7 @@ namespace Nop.Services.Orders
         {
             GetShoppingCartSubTotal(cart, includingTax,
                 out discountAmount, out appliedDiscounts,
-                out subTotalWithoutDiscount, out subTotalWithDiscount, out SortedDictionary<decimal, decimal> _);
+                out subTotalWithoutDiscount, out subTotalWithDiscount, out _);
         }
 
         /// <summary>
@@ -768,7 +743,7 @@ namespace Nop.Services.Orders
                 return;
 
             //get the customer 
-            var customer = cart.GetCustomer();
+            var customer = cart.FirstOrDefault(item => item.Customer != null)?.Customer;
 
             //sub totals
             var subTotalExclTaxWithoutDiscount = decimal.Zero;
@@ -777,52 +752,52 @@ namespace Nop.Services.Orders
             {
                 var sciSubTotal = _priceCalculationService.GetSubTotal(shoppingCartItem);
 
-                var sciExclTax = _taxService.GetProductPrice(shoppingCartItem.Product, sciSubTotal, false, customer, out decimal taxRate);
+                var sciExclTax = _taxService.GetProductPrice(shoppingCartItem.Product, sciSubTotal, false, customer, out var taxRate);
                 var sciInclTax = _taxService.GetProductPrice(shoppingCartItem.Product, sciSubTotal, true, customer, out taxRate);
                 subTotalExclTaxWithoutDiscount += sciExclTax;
                 subTotalInclTaxWithoutDiscount += sciInclTax;
 
                 //tax rates
                 var sciTax = sciInclTax - sciExclTax;
-                if (taxRate > decimal.Zero && sciTax > decimal.Zero)
+                if (taxRate <= decimal.Zero || sciTax <= decimal.Zero) 
+                    continue;
+
+                if (!taxRates.ContainsKey(taxRate))
                 {
-                    if (!taxRates.ContainsKey(taxRate))
-                    {
-                        taxRates.Add(taxRate, sciTax);
-                    }
-                    else
-                    {
-                        taxRates[taxRate] = taxRates[taxRate] + sciTax;
-                    }
+                    taxRates.Add(taxRate, sciTax);
+                }
+                else
+                {
+                    taxRates[taxRate] = taxRates[taxRate] + sciTax;
                 }
             }
 
             //checkout attributes
             if (customer != null)
             {
-                var checkoutAttributesXml = customer.GetAttribute<string>(SystemCustomerAttributeNames.CheckoutAttributes, _genericAttributeService, _storeContext.CurrentStore.Id);
+                var checkoutAttributesXml = _genericAttributeService.GetAttribute<string>(customer, NopCustomerDefaults.CheckoutAttributes, _storeContext.CurrentStore.Id);
                 var attributeValues = _checkoutAttributeParser.ParseCheckoutAttributeValues(checkoutAttributesXml);
                 if (attributeValues != null)
                 {
                     foreach (var attributeValue in attributeValues)
                     {
-                        var caExclTax = _taxService.GetCheckoutAttributePrice(attributeValue, false, customer, out decimal taxRate);
+                        var caExclTax = _taxService.GetCheckoutAttributePrice(attributeValue, false, customer, out var taxRate);
                         var caInclTax = _taxService.GetCheckoutAttributePrice(attributeValue, true, customer, out taxRate);
                         subTotalExclTaxWithoutDiscount += caExclTax;
                         subTotalInclTaxWithoutDiscount += caInclTax;
 
                         //tax rates
                         var caTax = caInclTax - caExclTax;
-                        if (taxRate > decimal.Zero && caTax > decimal.Zero)
+                        if (taxRate <= decimal.Zero || caTax <= decimal.Zero) 
+                            continue;
+
+                        if (!taxRates.ContainsKey(taxRate))
                         {
-                            if (!taxRates.ContainsKey(taxRate))
-                            {
-                                taxRates.Add(taxRate, caTax);
-                            }
-                            else
-                            {
-                                taxRates[taxRate] = taxRates[taxRate] + caTax;
-                            }
+                            taxRates.Add(taxRate, caTax);
+                        }
+                        else
+                        {
+                            taxRates[taxRate] = taxRates[taxRate] + caTax;
                         }
                     }
                 }
@@ -834,7 +809,7 @@ namespace Nop.Services.Orders
                 subTotalWithoutDiscount = decimal.Zero;
 
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                subTotalWithoutDiscount = RoundingHelper.RoundPrice(subTotalWithoutDiscount);
+                subTotalWithoutDiscount = _priceCalculationService.RoundPrice(subTotalWithoutDiscount);
 
             //We calculate discount amount on order subtotal excl tax (discount first)
             //calculate discount amount ('Applied to order subtotal' discount)
@@ -853,28 +828,28 @@ namespace Nop.Services.Orders
                 var taxRate = kvp.Key;
                 var taxValue = kvp.Value;
 
-                if (taxValue != decimal.Zero)
-                {
-                    //discount the tax amount that applies to subtotal items
-                    if (subTotalExclTaxWithoutDiscount > decimal.Zero)
-                    {
-                        var discountTax = taxRates[taxRate] * (discountAmountExclTax / subTotalExclTaxWithoutDiscount);
-                        discountAmountInclTax += discountTax;
-                        taxValue = taxRates[taxRate] - discountTax;
-                        if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                            taxValue = RoundingHelper.RoundPrice(taxValue);
-                        taxRates[taxRate] = taxValue;
-                    }
+                if (taxValue == decimal.Zero) 
+                    continue;
 
-                    //subtotal with discount (incl tax)
-                    subTotalInclTaxWithDiscount += taxValue;
+                //discount the tax amount that applies to subtotal items
+                if (subTotalExclTaxWithoutDiscount > decimal.Zero)
+                {
+                    var discountTax = taxRates[taxRate] * (discountAmountExclTax / subTotalExclTaxWithoutDiscount);
+                    discountAmountInclTax += discountTax;
+                    taxValue = taxRates[taxRate] - discountTax;
+                    if (_shoppingCartSettings.RoundPricesDuringCalculation)
+                        taxValue = _priceCalculationService.RoundPrice(taxValue);
+                    taxRates[taxRate] = taxValue;
                 }
+
+                //subtotal with discount (incl tax)
+                subTotalInclTaxWithDiscount += taxValue;
             }
 
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
             {
-                discountAmountInclTax = RoundingHelper.RoundPrice(discountAmountInclTax);
-                discountAmountExclTax = RoundingHelper.RoundPrice(discountAmountExclTax);
+                discountAmountInclTax = _priceCalculationService.RoundPrice(discountAmountInclTax);
+                discountAmountExclTax = _priceCalculationService.RoundPrice(discountAmountExclTax);
             }
 
             if (includingTax)
@@ -892,7 +867,7 @@ namespace Nop.Services.Orders
                 subTotalWithDiscount = decimal.Zero;
 
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                subTotalWithDiscount = RoundingHelper.RoundPrice(subTotalWithDiscount);
+                subTotalWithDiscount = _priceCalculationService.RoundPrice(subTotalWithDiscount);
         }
 
         /// <summary>
@@ -906,7 +881,7 @@ namespace Nop.Services.Orders
             var updatedOrderItem = updateOrderParameters.UpdatedOrderItem;
 
             //get the customer 
-            var customer = restoredCart.GetCustomer();
+            var customer = restoredCart.FirstOrDefault(item => item.Customer != null)?.Customer;
 
             //sub total
             var subTotalExclTax = UpdateSubTotal(updateOrderParameters, restoredCart, updatedOrderItem, updatedOrder, customer, out var subTotalInclTax, out var subTotalTaxRates, out var discountAmountExclTax);
@@ -928,7 +903,7 @@ namespace Nop.Services.Orders
         /// <returns>Additional shipping charge</returns>
         public virtual decimal GetShoppingCartAdditionalShippingCharge(IList<ShoppingCartItem> cart)
         {
-            return cart.Sum(shoppingCartItem => shoppingCartItem.GetAdditionalShippingCharge(_productService, _productAttributeParser));
+            return cart.Sum(shoppingCartItem => _shippingService.GetAdditionalShippingCharge(shoppingCartItem));
         }
 
         /// <summary>
@@ -940,27 +915,27 @@ namespace Nop.Services.Orders
         public virtual bool IsFreeShipping(IList<ShoppingCartItem> cart, decimal? subTotal = null)
         {
             //check whether customer is in a customer role with free shipping applied
-            var customer = cart.GetCustomer();
+            var customer = cart.FirstOrDefault(item => item.Customer != null)?.Customer;
             if (customer != null && customer.CustomerRoles.Where(role => role.Active).Any(role => role.FreeShipping))
                 return true;
 
             //check whether all shopping cart items and their associated products marked as free shipping
-            if (cart.All(shoppingCartItem => shoppingCartItem.IsFreeShipping(_productService, _productAttributeParser)))
+            if (cart.All(shoppingCartItem => _shippingService.IsFreeShipping(shoppingCartItem)))
                 return true;
 
             //free shipping over $X
-            if (_shippingSettings.FreeShippingOverXEnabled)
-            {
-                if (!subTotal.HasValue)
-                {
-                    GetShoppingCartSubTotal(cart, _shippingSettings.FreeShippingOverXIncludingTax, out decimal _, out List<DiscountForCaching> _, out decimal _, out decimal subTotalWithDiscount);
-                    subTotal = subTotalWithDiscount;
-                }
+            if (!_shippingSettings.FreeShippingOverXEnabled) 
+                return false;
 
-                //check whether we have subtotal enough to have free shipping
-                if (subTotal.Value > _shippingSettings.FreeShippingOverXValue)
-                    return true;
+            if (!subTotal.HasValue)
+            {
+                GetShoppingCartSubTotal(cart, _shippingSettings.FreeShippingOverXIncludingTax, out _, out _, out _, out var subTotalWithDiscount);
+                subTotal = subTotalWithDiscount;
             }
+
+            //check whether we have subtotal enough to have free shipping
+            if (subTotal.Value > _shippingSettings.FreeShippingOverXValue)
+                return true;
 
             return false;
         }
@@ -980,17 +955,25 @@ namespace Nop.Services.Orders
             //free shipping
             if (IsFreeShipping(cart))
                 return decimal.Zero;
-            
+
             //with additional shipping charges
-            var adjustedRate = shippingRate + GetShoppingCartAdditionalShippingCharge(cart);
+            var pickupPoint = _genericAttributeService.GetAttribute<PickupPoint>(cart.FirstOrDefault(item => item.Customer != null)?.Customer,
+                    NopCustomerDefaults.SelectedPickupPointAttribute, _storeContext.CurrentStore.Id);
+
+            var adjustedRate = shippingRate;
+
+            if (!_shippingSettings.AllowPickUpInStore || pickupPoint == null || !_shippingSettings.IgnoreAdditionalShippingChargeForPickUpInStore)
+            {
+                adjustedRate += GetShoppingCartAdditionalShippingCharge(cart);
+            }                
 
             //discount
-            var discountAmount = GetShippingDiscount(cart.GetCustomer(), adjustedRate, out appliedDiscounts);
+            var discountAmount = GetShippingDiscount(cart.FirstOrDefault(item => item.Customer != null)?.Customer, adjustedRate, out appliedDiscounts);
             adjustedRate -= discountAmount;
 
             adjustedRate = Math.Max(adjustedRate, decimal.Zero);
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                adjustedRate = RoundingHelper.RoundPrice(adjustedRate);
+                adjustedRate = _priceCalculationService.RoundPrice(adjustedRate);
 
             return adjustedRate;
         }
@@ -999,11 +982,12 @@ namespace Nop.Services.Orders
         /// Gets shopping cart shipping total
         /// </summary>
         /// <param name="cart">Cart</param>
+        /// <param name="shippingRateComputationMethods">Shipping rate computation methods</param>
         /// <returns>Shipping total</returns>
-        public virtual decimal? GetShoppingCartShippingTotal(IList<ShoppingCartItem> cart)
+        public virtual decimal? GetShoppingCartShippingTotal(IList<ShoppingCartItem> cart, IList<IShippingRateComputationMethod> shippingRateComputationMethods)
         {
             var includingTax = _workContext.TaxDisplayType == TaxDisplayType.IncludingTax;
-            return GetShoppingCartShippingTotal(cart, includingTax);
+            return GetShoppingCartShippingTotal(cart, includingTax, shippingRateComputationMethods);
         }
 
         /// <summary>
@@ -1011,10 +995,11 @@ namespace Nop.Services.Orders
         /// </summary>
         /// <param name="cart">Cart</param>
         /// <param name="includingTax">A value indicating whether calculated price should include tax</param>
+        /// <param name="shippingRateComputationMethods">Shipping rate computation methods</param>
         /// <returns>Shipping total</returns>
-        public virtual decimal? GetShoppingCartShippingTotal(IList<ShoppingCartItem> cart, bool includingTax)
+        public virtual decimal? GetShoppingCartShippingTotal(IList<ShoppingCartItem> cart, bool includingTax, IList<IShippingRateComputationMethod> shippingRateComputationMethods)
         {
-            return GetShoppingCartShippingTotal(cart, includingTax, out decimal _);
+            return GetShoppingCartShippingTotal(cart, includingTax, shippingRateComputationMethods, out _);
         }
 
         /// <summary>
@@ -1022,12 +1007,13 @@ namespace Nop.Services.Orders
         /// </summary>
         /// <param name="cart">Cart</param>
         /// <param name="includingTax">A value indicating whether calculated price should include tax</param>
+        /// <param name="shippingRateComputationMethods">Shipping rate computation methods</param>
         /// <param name="taxRate">Applied tax rate</param>
         /// <returns>Shipping total</returns>
-        public virtual decimal? GetShoppingCartShippingTotal(IList<ShoppingCartItem> cart, bool includingTax,
+        public virtual decimal? GetShoppingCartShippingTotal(IList<ShoppingCartItem> cart, bool includingTax, IList<IShippingRateComputationMethod> shippingRateComputationMethods,
             out decimal taxRate)
         {
-            return GetShoppingCartShippingTotal(cart, includingTax, out taxRate, out List<DiscountForCaching> _);
+            return GetShoppingCartShippingTotal(cart, includingTax, shippingRateComputationMethods,  out taxRate, out _);
         }
 
         /// <summary>
@@ -1035,10 +1021,11 @@ namespace Nop.Services.Orders
         /// </summary>
         /// <param name="cart">Cart</param>
         /// <param name="includingTax">A value indicating whether calculated price should include tax</param>
+        /// <param name="shippingRateComputationMethods">Shipping rate computation methods</param>
         /// <param name="taxRate">Applied tax rate</param>
         /// <param name="appliedDiscounts">Applied discounts</param>
         /// <returns>Shipping total</returns>
-        public virtual decimal? GetShoppingCartShippingTotal(IList<ShoppingCartItem> cart, bool includingTax,
+        public virtual decimal? GetShoppingCartShippingTotal(IList<ShoppingCartItem> cart, bool includingTax, IList<IShippingRateComputationMethod> shippingRateComputationMethods,
             out decimal taxRate, out List<DiscountForCaching> appliedDiscounts)
         {
             decimal? shippingTotal = null;
@@ -1046,7 +1033,7 @@ namespace Nop.Services.Orders
             appliedDiscounts = new List<DiscountForCaching>();
             taxRate = decimal.Zero;
 
-            var customer = cart.GetCustomer();
+            var customer = cart.FirstOrDefault(item => item.Customer != null)?.Customer;
 
             var isFreeShipping = IsFreeShipping(cart);
             if (isFreeShipping)
@@ -1054,7 +1041,7 @@ namespace Nop.Services.Orders
 
             ShippingOption shippingOption = null;
             if (customer != null)
-                shippingOption = customer.GetAttribute<ShippingOption>(SystemCustomerAttributeNames.SelectedShippingOption, _genericAttributeService, _storeContext.CurrentStore.Id);
+                shippingOption = _genericAttributeService.GetAttribute<ShippingOption>(customer, NopCustomerDefaults.SelectedShippingOptionAttribute, _storeContext.CurrentStore.Id);
 
             if (shippingOption != null)
             {
@@ -1068,58 +1055,60 @@ namespace Nop.Services.Orders
                 if (customer != null)
                     shippingAddress = customer.ShippingAddress;
 
-                var shippingRateComputationMethods = _shippingService.LoadActiveShippingRateComputationMethods(_workContext.CurrentCustomer, _storeContext.CurrentStore.Id);
-                if (!shippingRateComputationMethods.Any() && !_shippingSettings.AllowPickUpInStore)
-                    throw new NopException("Shipping rate computation method could not be loaded");
-
-                if (shippingRateComputationMethods.Count == 1)
+                if (shippingRateComputationMethods != null)
                 {
-                    var shippingRateComputationMethod = shippingRateComputationMethods[0];
+                    if (!shippingRateComputationMethods.Any() && !_shippingSettings.AllowPickUpInStore)
+                        throw new NopException("Shipping rate computation method could not be loaded");
 
-                    var shippingOptionRequests = _shippingService.CreateShippingOptionRequests(cart,
-                        shippingAddress,
-                        _storeContext.CurrentStore.Id,
-                        out var _);
-                    decimal? fixedRate = null;
-                    foreach (var shippingOptionRequest in shippingOptionRequests)
+                    if (shippingRateComputationMethods.Count == 1)
                     {
-                        //calculate fixed rates for each request-package
-                        var fixedRateTmp = shippingRateComputationMethod.GetFixedRate(shippingOptionRequest);
-                        if (fixedRateTmp.HasValue)
+                        var shippingRateComputationMethod = shippingRateComputationMethods[0];
+
+                        var shippingOptionRequests = _shippingService.CreateShippingOptionRequests(cart,
+                            shippingAddress,
+                            _storeContext.CurrentStore.Id,
+                            out _);
+                        decimal? fixedRate = null;
+                        foreach (var shippingOptionRequest in shippingOptionRequests)
                         {
+                            //calculate fixed rates for each request-package
+                            var fixedRateTmp = shippingRateComputationMethod.GetFixedRate(shippingOptionRequest);
+                            if (!fixedRateTmp.HasValue)
+                                continue;
+
                             if (!fixedRate.HasValue)
                                 fixedRate = decimal.Zero;
 
                             fixedRate += fixedRateTmp.Value;
                         }
-                    }
 
-                    if (fixedRate.HasValue)
-                    {
-                        //adjust shipping rate
-                        shippingTotal = AdjustShippingRate(fixedRate.Value, cart, out appliedDiscounts);
+                        if (fixedRate.HasValue)
+                        {
+                            //adjust shipping rate
+                            shippingTotal = AdjustShippingRate(fixedRate.Value, cart, out appliedDiscounts);
+                        }
                     }
                 }
             }
 
-            if (shippingTotal.HasValue)
-            {
-                if (shippingTotal.Value < decimal.Zero)
-                    shippingTotal = decimal.Zero;
+            if (!shippingTotal.HasValue) 
+                return null;
 
-                //round
-                if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                    shippingTotal = RoundingHelper.RoundPrice(shippingTotal.Value);
+            if (shippingTotal.Value < decimal.Zero)
+                shippingTotal = decimal.Zero;
 
-                shippingTotalTaxed = _taxService.GetShippingPrice(shippingTotal.Value,
-                    includingTax,
-                    customer,
-                    out taxRate);
+            //round
+            if (_shoppingCartSettings.RoundPricesDuringCalculation)
+                shippingTotal = _priceCalculationService.RoundPrice(shippingTotal.Value);
 
-                //round
-                if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                    shippingTotalTaxed = RoundingHelper.RoundPrice(shippingTotalTaxed.Value);
-            }
+            shippingTotalTaxed = _taxService.GetShippingPrice(shippingTotal.Value,
+                includingTax,
+                customer,
+                out taxRate);
+
+            //round
+            if (_shoppingCartSettings.RoundPricesDuringCalculation)
+                shippingTotalTaxed = _priceCalculationService.RoundPrice(shippingTotalTaxed.Value);
 
             return shippingTotalTaxed;
         }
@@ -1128,24 +1117,26 @@ namespace Nop.Services.Orders
         /// Gets tax
         /// </summary>
         /// <param name="cart">Shopping cart</param>
+        /// <param name="shippingRateComputationMethods">Shipping rate computation methods</param>
         /// <param name="usePaymentMethodAdditionalFee">A value indicating whether we should use payment method additional fee when calculating tax</param>
         /// <returns>Tax total</returns>
-        public virtual decimal GetTaxTotal(IList<ShoppingCartItem> cart, bool usePaymentMethodAdditionalFee = true)
+        public virtual decimal GetTaxTotal(IList<ShoppingCartItem> cart, IList<IShippingRateComputationMethod> shippingRateComputationMethods = null, bool usePaymentMethodAdditionalFee = true)
         {
             if (cart == null)
                 throw new ArgumentNullException(nameof(cart));
 
-            return GetTaxTotal(cart, out SortedDictionary<decimal, decimal> _, usePaymentMethodAdditionalFee);
+            return GetTaxTotal(cart, shippingRateComputationMethods, out _, usePaymentMethodAdditionalFee);
         }
 
         /// <summary>
         /// Gets tax
         /// </summary>
         /// <param name="cart">Shopping cart</param>
+        /// <param name="shippingRateComputationMethods">Shipping rate computation methods</param>
         /// <param name="taxRates">Tax rates</param>
         /// <param name="usePaymentMethodAdditionalFee">A value indicating whether we should use payment method additional fee when calculating tax</param>
         /// <returns>Tax total</returns>
-        public virtual decimal GetTaxTotal(IList<ShoppingCartItem> cart,
+        public virtual decimal GetTaxTotal(IList<ShoppingCartItem> cart, IList<IShippingRateComputationMethod> shippingRateComputationMethods,
             out SortedDictionary<decimal, decimal> taxRates, bool usePaymentMethodAdditionalFee = true)
         {
             if (cart == null)
@@ -1153,40 +1144,38 @@ namespace Nop.Services.Orders
 
             taxRates = new SortedDictionary<decimal, decimal>();
 
-            var customer = cart.GetCustomer();
-            var paymentMethodSystemName = "";
+            var customer = cart.FirstOrDefault(item => item.Customer != null)?.Customer;
+            var paymentMethodSystemName = string.Empty;
             if (customer != null)
             {
-                paymentMethodSystemName = customer.GetAttribute<string>(
-                    SystemCustomerAttributeNames.SelectedPaymentMethod,
-                    _genericAttributeService,
-                    _storeContext.CurrentStore.Id);
+                paymentMethodSystemName = _genericAttributeService.GetAttribute<string>(customer,
+                    NopCustomerDefaults.SelectedPaymentMethodAttribute, _storeContext.CurrentStore.Id);
             }
 
             //order sub total (items + checkout attributes)
             var subTotalTaxTotal = decimal.Zero;
-            GetShoppingCartSubTotal(cart, false, out decimal _, out List<DiscountForCaching> _, out decimal _, out decimal _, out SortedDictionary<decimal, decimal> orderSubTotalTaxRates);
+            GetShoppingCartSubTotal(cart, false, out _, out _, out _, out _, out var orderSubTotalTaxRates);
             foreach (var kvp in orderSubTotalTaxRates)
             {
                 var taxRate = kvp.Key;
                 var taxValue = kvp.Value;
                 subTotalTaxTotal += taxValue;
 
-                if (taxRate > decimal.Zero && taxValue > decimal.Zero)
-                {
-                    if (!taxRates.ContainsKey(taxRate))
-                        taxRates.Add(taxRate, taxValue);
-                    else
-                        taxRates[taxRate] = taxRates[taxRate] + taxValue;
-                }
+                if (taxRate <= decimal.Zero || taxValue <= decimal.Zero) 
+                    continue;
+
+                if (!taxRates.ContainsKey(taxRate))
+                    taxRates.Add(taxRate, taxValue);
+                else
+                    taxRates[taxRate] = taxRates[taxRate] + taxValue;
             }
 
             //shipping
             var shippingTax = decimal.Zero;
             if (_taxSettings.ShippingIsTaxable)
             {
-                var shippingExclTax = GetShoppingCartShippingTotal(cart, false, out decimal taxRate);
-                var shippingInclTax = GetShoppingCartShippingTotal(cart, true, out taxRate);
+                var shippingExclTax = GetShoppingCartShippingTotal(cart, false, shippingRateComputationMethods, out var taxRate);
+                var shippingInclTax = GetShoppingCartShippingTotal(cart, true, shippingRateComputationMethods, out taxRate);
                 if (shippingExclTax.HasValue && shippingInclTax.HasValue)
                 {
                     shippingTax = shippingInclTax.Value - shippingExclTax.Value;
@@ -1210,7 +1199,7 @@ namespace Nop.Services.Orders
             if (usePaymentMethodAdditionalFee && _taxSettings.PaymentMethodAdditionalFeeIsTaxable)
             {
                 var paymentMethodAdditionalFee = _paymentService.GetAdditionalHandlingFee(cart, paymentMethodSystemName);
-                var paymentMethodAdditionalFeeExclTax = _taxService.GetPaymentMethodAdditionalFee(paymentMethodAdditionalFee, false, customer, out decimal taxRate);
+                var paymentMethodAdditionalFeeExclTax = _taxService.GetPaymentMethodAdditionalFee(paymentMethodAdditionalFee, false, customer, out var taxRate);
                 var paymentMethodAdditionalFeeInclTax = _taxService.GetPaymentMethodAdditionalFee(paymentMethodAdditionalFee, true, customer, out taxRate);
 
                 paymentMethodAdditionalFeeTax = paymentMethodAdditionalFeeInclTax - paymentMethodAdditionalFeeExclTax;
@@ -1239,7 +1228,7 @@ namespace Nop.Services.Orders
                 taxTotal = decimal.Zero;
             //round tax
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                taxTotal = RoundingHelper.RoundPrice(taxTotal);
+                taxTotal = _priceCalculationService.RoundPrice(taxTotal);
             return taxTotal;
         }
 
@@ -1277,23 +1266,24 @@ namespace Nop.Services.Orders
             redeemedRewardPoints = 0;
             redeemedRewardPointsAmount = decimal.Zero;
 
-            var customer = cart.GetCustomer();
-            var paymentMethodSystemName = "";
+            var customer = cart.FirstOrDefault(item => item.Customer != null)?.Customer;
+            var paymentMethodSystemName = string.Empty;
             if (customer != null)
             {
-                paymentMethodSystemName = customer.GetAttribute<string>(
-                    SystemCustomerAttributeNames.SelectedPaymentMethod,
-                    _genericAttributeService,
-                    _storeContext.CurrentStore.Id);
+                paymentMethodSystemName = _genericAttributeService.GetAttribute<string>(customer,
+                    NopCustomerDefaults.SelectedPaymentMethodAttribute, _storeContext.CurrentStore.Id);
             }
 
             //subtotal without tax
-            GetShoppingCartSubTotal(cart, false, out decimal _, out List<DiscountForCaching> _, out decimal _, out decimal subTotalWithDiscountBase);
+            GetShoppingCartSubTotal(cart, false, out _, out _, out _, out var subTotalWithDiscountBase);
             //subtotal with discount
             var subtotalBase = subTotalWithDiscountBase;
 
+            //LoadAllShippingRateComputationMethods
+            var shippingRateComputationMethods = _shippingService.LoadActiveShippingRateComputationMethods(_workContext.CurrentCustomer, _storeContext.CurrentStore.Id);
+
             //shipping without tax
-            var shoppingCartShipping = GetShoppingCartShippingTotal(cart, false);
+            var shoppingCartShipping = GetShoppingCartShippingTotal(cart, false, shippingRateComputationMethods);
 
             //payment method additional fee without tax
             var paymentMethodAdditionalFeeWithoutTax = decimal.Zero;
@@ -1307,7 +1297,7 @@ namespace Nop.Services.Orders
             }
 
             //tax
-            var shoppingCartTax = GetTaxTotal(cart, usePaymentMethodAdditionalFee);
+            var shoppingCartTax = GetTaxTotal(cart, shippingRateComputationMethods, usePaymentMethodAdditionalFee);
 
             //order total
             var resultTemp = decimal.Zero;
@@ -1316,10 +1306,11 @@ namespace Nop.Services.Orders
             {
                 resultTemp += shoppingCartShipping.Value;
             }
+
             resultTemp += paymentMethodAdditionalFeeWithoutTax;
             resultTemp += shoppingCartTax;
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                resultTemp = RoundingHelper.RoundPrice(resultTemp);
+                resultTemp = _priceCalculationService.RoundPrice(resultTemp);
 
             //order total discount
             discountAmount = GetOrderTotalDiscount(customer, resultTemp, out appliedDiscounts);
@@ -1334,9 +1325,8 @@ namespace Nop.Services.Orders
             if (resultTemp < decimal.Zero)
                 resultTemp = decimal.Zero;
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                resultTemp = RoundingHelper.RoundPrice(resultTemp);
-            
-            
+                resultTemp = _priceCalculationService.RoundPrice(resultTemp);
+
             //let's apply gift cards now (gift cards that can be used)
             appliedGiftCards = new List<AppliedGiftCard>();
             AppliedGiftCards(cart, appliedGiftCards, customer, ref resultTemp);
@@ -1344,7 +1334,7 @@ namespace Nop.Services.Orders
             if (resultTemp < decimal.Zero)
                 resultTemp = decimal.Zero;
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                resultTemp = RoundingHelper.RoundPrice(resultTemp);
+                resultTemp = _priceCalculationService.RoundPrice(resultTemp);
 
             if (!shoppingCartShipping.HasValue)
             {
@@ -1359,7 +1349,7 @@ namespace Nop.Services.Orders
 
             orderTotal = orderTotal - redeemedRewardPointsAmount;
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                orderTotal = RoundingHelper.RoundPrice(orderTotal);
+                orderTotal = _priceCalculationService.RoundPrice(orderTotal);
             return orderTotal;
         }
 
@@ -1375,7 +1365,7 @@ namespace Nop.Services.Orders
 
             var result = rewardPoints * _rewardPointsSettings.ExchangeRate;
             if (_shoppingCartSettings.RoundPricesDuringCalculation)
-                result = RoundingHelper.RoundPrice(result);
+                result = _priceCalculationService.RoundPrice(result);
             return result;
         }
 

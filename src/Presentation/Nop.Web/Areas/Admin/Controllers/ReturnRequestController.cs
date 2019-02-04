@@ -8,8 +8,8 @@ using Nop.Services.Logging;
 using Nop.Services.Messages;
 using Nop.Services.Orders;
 using Nop.Services.Security;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Orders;
 using Nop.Web.Framework.Controllers;
 using Nop.Web.Framework.Mvc.Filters;
@@ -24,6 +24,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly ICustomerService _customerService;
         private readonly ILocalizationService _localizationService;
         private readonly ILocalizedEntityService _localizedEntityService;
+        private readonly INotificationService _notificationService;
         private readonly IOrderService _orderService;
         private readonly IPermissionService _permissionService;
         private readonly IReturnRequestModelFactory _returnRequestModelFactory;
@@ -38,6 +39,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             ICustomerService customerService,
             ILocalizationService localizationService,
             ILocalizedEntityService localizedEntityService,
+            INotificationService notificationService,
             IOrderService orderService,
             IPermissionService permissionService,
             IReturnRequestModelFactory returnRequestModelFactory,
@@ -48,6 +50,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._customerService = customerService;
             this._localizationService = localizationService;
             this._localizedEntityService = localizedEntityService;
+            this._notificationService = notificationService;
             this._orderService = orderService;
             this._permissionService = permissionService;
             this._returnRequestModelFactory = returnRequestModelFactory;
@@ -143,12 +146,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                returnRequest.Quantity = model.Quantity;
-                returnRequest.ReasonForReturn = model.ReasonForReturn;
-                returnRequest.RequestedAction = model.RequestedAction;
-                returnRequest.CustomerComments = model.CustomerComments;
-                returnRequest.StaffNotes = model.StaffNotes;
-                returnRequest.ReturnRequestStatusId = model.ReturnRequestStatusId;
+                returnRequest = model.ToEntity(returnRequest);
                 returnRequest.UpdatedOnUtc = DateTime.UtcNow;
                 _customerService.UpdateCustomer(returnRequest.Customer);
 
@@ -156,7 +154,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 _customerActivityService.InsertActivity("EditReturnRequest",
                     string.Format(_localizationService.GetResource("ActivityLog.EditReturnRequest"), returnRequest.Id), returnRequest);
 
-                SuccessNotification(_localizationService.GetResource("Admin.ReturnRequests.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ReturnRequests.Updated"));
 
                 return continueEditing ? RedirectToAction("Edit", new { id = returnRequest.Id }) : RedirectToAction("List");
             }
@@ -183,13 +181,13 @@ namespace Nop.Web.Areas.Admin.Controllers
             var orderItem = _orderService.GetOrderItemById(returnRequest.OrderItemId);
             if (orderItem == null)
             {
-                ErrorNotification(_localizationService.GetResource("Admin.ReturnRequests.OrderItemDeleted"));
+                _notificationService.ErrorNotification(_localizationService.GetResource("Admin.ReturnRequests.OrderItemDeleted"));
                 return RedirectToAction("Edit", new { id = returnRequest.Id });
             }
 
             var queuedEmailIds = _workflowMessageService.SendReturnRequestStatusChangedCustomerNotification(returnRequest, orderItem, orderItem.Order.CustomerLanguageId);
             if (queuedEmailIds.Any())
-                SuccessNotification(_localizationService.GetResource("Admin.ReturnRequests.Notified"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ReturnRequests.Notified"));
 
             return RedirectToAction("Edit", new { id = returnRequest.Id });
         }
@@ -211,7 +209,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             _customerActivityService.InsertActivity("DeleteReturnRequest",
                 string.Format(_localizationService.GetResource("ActivityLog.DeleteReturnRequest"), returnRequest.Id), returnRequest);
 
-            SuccessNotification(_localizationService.GetResource("Admin.ReturnRequests.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ReturnRequests.Deleted"));
 
             return RedirectToAction("List");
         }
@@ -261,13 +259,13 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var returnRequestReason = model.ToEntity();
+                var returnRequestReason = model.ToEntity<ReturnRequestReason>();
                 _returnRequestService.InsertReturnRequestReason(returnRequestReason);
 
                 //locales
                 UpdateLocales(returnRequestReason, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestReasons.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestReasons.Added"));
 
                 return continueEditing 
                     ? RedirectToAction("ReturnRequestReasonEdit", new { id = returnRequestReason.Id })
@@ -316,7 +314,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //locales
                 UpdateLocales(returnRequestReason, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestReasons.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestReasons.Updated"));
 
                 if (!continueEditing)
                     return RedirectToAction("ReturnRequestReasonList");
@@ -346,7 +344,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             _returnRequestService.DeleteReturnRequestReason(returnRequestReason);
 
-            SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestReasons.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestReasons.Deleted"));
 
             return RedirectToAction("ReturnRequestReasonList");
         }
@@ -398,13 +396,13 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var returnRequestAction = model.ToEntity();
+                var returnRequestAction = model.ToEntity<ReturnRequestAction>();
                 _returnRequestService.InsertReturnRequestAction(returnRequestAction);
 
                 //locales
                 UpdateLocales(returnRequestAction, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestActions.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestActions.Added"));
 
                 return continueEditing 
                     ? RedirectToAction("ReturnRequestActionEdit", new { id = returnRequestAction.Id }) 
@@ -453,7 +451,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //locales
                 UpdateLocales(returnRequestAction, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestActions.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestActions.Updated"));
 
                 if (!continueEditing)
                     return RedirectToAction("ReturnRequestActionList");
@@ -483,7 +481,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             _returnRequestService.DeleteReturnRequestAction(returnRequestAction);
 
-            SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestActions.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Configuration.Settings.Order.ReturnRequestActions.Deleted"));
 
             return RedirectToAction("ReturnRequestActionList");
         }

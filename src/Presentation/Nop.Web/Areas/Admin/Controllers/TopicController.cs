@@ -4,12 +4,13 @@ using Nop.Core.Domain.Topics;
 using Nop.Services.Customers;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
+using Nop.Services.Messages;
 using Nop.Services.Security;
 using Nop.Services.Seo;
 using Nop.Services.Stores;
 using Nop.Services.Topics;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Topics;
 using Nop.Web.Framework.Mvc.Filters;
 
@@ -24,6 +25,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly ICustomerService _customerService;
         private readonly ILocalizationService _localizationService;
         private readonly ILocalizedEntityService _localizedEntityService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly IStoreMappingService _storeMappingService;
         private readonly IStoreService _storeService;
@@ -40,6 +42,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             ICustomerService customerService,
             ILocalizationService localizationService,
             ILocalizedEntityService localizedEntityService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             IStoreMappingService storeMappingService,
             IStoreService storeService,
@@ -52,6 +55,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._customerService = customerService;
             this._localizationService = localizationService;
             this._localizedEntityService = localizedEntityService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._storeMappingService = storeMappingService;
             this._storeService = storeService;
@@ -63,7 +67,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         #endregion
 
         #region Utilities
-        
+
         protected virtual void UpdateLocales(Topic topic, TopicModel model)
         {
             foreach (var localized in model.Locales)
@@ -94,7 +98,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                     localized.LanguageId);
 
                 //search engine name
-                var seName = topic.ValidateSeName(localized.SeName, localized.Title, false);
+                var seName = _urlRecordService.ValidateSeName(topic, localized.SeName, localized.Title, false);
                 _urlRecordService.SaveSlug(topic, seName, localized.LanguageId);
             }
         }
@@ -205,11 +209,11 @@ namespace Nop.Web.Areas.Admin.Controllers
                 if (!model.IsPasswordProtected)
                     model.Password = null;
 
-                var topic = model.ToEntity();
+                var topic = model.ToEntity<Topic>();
                 _topicService.InsertTopic(topic);
 
                 //search engine name
-                model.SeName = topic.ValidateSeName(model.SeName, topic.Title ?? topic.SystemName, true);
+                model.SeName = _urlRecordService.ValidateSeName(topic, model.SeName, topic.Title ?? topic.SystemName, true);
                 _urlRecordService.SaveSlug(topic, model.SeName, 0);
 
                 //ACL (customer roles)
@@ -221,7 +225,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //locales
                 UpdateLocales(topic, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Topics.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Topics.Added"));
 
                 //activity log
                 _customerActivityService.InsertActivity("AddNewTopic",
@@ -279,7 +283,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 _topicService.UpdateTopic(topic);
 
                 //search engine name
-                model.SeName = topic.ValidateSeName(model.SeName, topic.Title ?? topic.SystemName, true);
+                model.SeName = _urlRecordService.ValidateSeName(topic, model.SeName, topic.Title ?? topic.SystemName, true);
                 _urlRecordService.SaveSlug(topic, model.SeName, 0);
 
                 //ACL (customer roles)
@@ -291,7 +295,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //locales
                 UpdateLocales(topic, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Topics.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Topics.Updated"));
 
                 //activity log
                 _customerActivityService.InsertActivity("EditTopic",
@@ -326,7 +330,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             _topicService.DeleteTopic(topic);
 
-            SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Topics.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.Topics.Deleted"));
 
             //activity log
             _customerActivityService.InsertActivity("DeleteTopic",

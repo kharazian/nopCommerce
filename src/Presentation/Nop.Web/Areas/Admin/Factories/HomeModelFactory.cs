@@ -102,7 +102,7 @@ namespace Nop.Web.Areas.Admin.Factories
                 HideAdvertisements = _adminAreaSettings.HideAdvertisementsOnAdminArea
             };
 
-            var rssData = _cacheManager.Get(ModelCacheEventConsumer.OFFICIAL_NEWS_MODEL_KEY, () =>
+            var rssData = _cacheManager.Get(NopModelCacheDefaults.OfficialNewsModelKey, () =>
             {
                 //compose nopCommerce news RSS feed URL
                 var nopCommerceNewsUrl = string.Format(NOP_COMMERCE_NEWS_URL,
@@ -115,7 +115,7 @@ namespace Nop.Web.Areas.Admin.Factories
                 var request = WebRequest.Create(nopCommerceNewsUrl);
 
                 //specify request timeout
-                request.Timeout = 5000;
+                request.Timeout = 3000;
 
                 //try to get nopCommerce news RSS feed
                 using (var response = request.GetResponse())

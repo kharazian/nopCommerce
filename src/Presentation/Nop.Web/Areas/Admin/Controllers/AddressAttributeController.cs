@@ -4,9 +4,10 @@ using Nop.Core.Domain.Common;
 using Nop.Services.Common;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
+using Nop.Services.Messages;
 using Nop.Services.Security;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.Common;
 using Nop.Web.Framework.Mvc;
 using Nop.Web.Framework.Mvc.Filters;
@@ -22,6 +23,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly ICustomerActivityService _customerActivityService;
         private readonly ILocalizedEntityService _localizedEntityService;
         private readonly ILocalizationService _localizationService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
 
         #endregion
@@ -33,6 +35,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             ICustomerActivityService customerActivityService,
             ILocalizedEntityService localizedEntityService,
             ILocalizationService localizationService,
+            INotificationService notificationService,
             IPermissionService permissionService)
         {
             this._addressAttributeModelFactory = addressAttributeModelFactory;
@@ -40,6 +43,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._customerActivityService = customerActivityService;
             this._localizedEntityService = localizedEntityService;
             this._localizationService = localizationService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
         }
 
@@ -126,7 +130,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var addressAttribute = model.ToEntity();
+                var addressAttribute = model.ToEntity<AddressAttribute>();
                 _addressAttributeService.InsertAddressAttribute(addressAttribute);
 
                 //activity log
@@ -137,7 +141,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //locales
                 UpdateAttributeLocales(addressAttribute, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Address.AddressAttributes.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Address.AddressAttributes.Added"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -195,7 +199,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //locales
                 UpdateAttributeLocales(addressAttribute, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.Address.AddressAttributes.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Address.AddressAttributes.Updated"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -231,7 +235,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 string.Format(_localizationService.GetResource("ActivityLog.DeleteAddressAttribute"), addressAttribute.Id),
                 addressAttribute);
 
-            SuccessNotification(_localizationService.GetResource("Admin.Address.AddressAttributes.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Address.AddressAttributes.Deleted"));
 
             return RedirectToAction("List");
         }
@@ -286,14 +290,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                var addressAttributeValue = new AddressAttributeValue
-                {
-                    AddressAttributeId = model.AddressAttributeId,
-                    Name = model.Name,
-                    IsPreSelected = model.IsPreSelected,
-                    DisplayOrder = model.DisplayOrder
-                };
-
+                var addressAttributeValue = model.ToEntity<AddressAttributeValue>();
                 _addressAttributeService.InsertAddressAttributeValue(addressAttributeValue);
 
                 //activity log
@@ -354,9 +351,7 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             if (ModelState.IsValid)
             {
-                addressAttributeValue.Name = model.Name;
-                addressAttributeValue.IsPreSelected = model.IsPreSelected;
-                addressAttributeValue.DisplayOrder = model.DisplayOrder;
+                addressAttributeValue = model.ToEntity(addressAttributeValue);
                 _addressAttributeService.UpdateAddressAttributeValue(addressAttributeValue);
 
                 UpdateValueLocales(addressAttributeValue, model);

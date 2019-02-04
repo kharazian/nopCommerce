@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Text;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Routing;
@@ -18,6 +17,7 @@ using Nop.Core.Domain.Forums;
 using Nop.Core.Domain.Localization;
 using Nop.Core.Domain.News;
 using Nop.Core.Domain.Orders;
+using Nop.Core.Domain.Security;
 using Nop.Core.Domain.Vendors;
 using Nop.Core.Infrastructure;
 using Nop.Services.Catalog;
@@ -32,7 +32,6 @@ using Nop.Services.Security;
 using Nop.Services.Seo;
 using Nop.Services.Themes;
 using Nop.Services.Topics;
-using Nop.Web.Framework.Security.Captcha;
 using Nop.Web.Framework.Themes;
 using Nop.Web.Framework.UI;
 using Nop.Web.Infrastructure.Cache;
@@ -47,115 +46,123 @@ namespace Nop.Web.Factories
     {
         #region Fields
 
+        private readonly BlogSettings _blogSettings;
+        private readonly CaptchaSettings _captchaSettings;
+        private readonly CatalogSettings _catalogSettings;
+        private readonly CommonSettings _commonSettings;
+        private readonly CustomerSettings _customerSettings;
+        private readonly DisplayDefaultFooterItemSettings _displayDefaultFooterItemSettings;
+        private readonly ForumSettings _forumSettings;
+        private readonly IActionContextAccessor _actionContextAccessor;
         private readonly ICategoryService _categoryService;
-        private readonly IProductService _productService;
-        private readonly IManufacturerService _manufacturerService;
-        private readonly ITopicService _topicService;
-        private readonly ILanguageService _languageService;
         private readonly ICurrencyService _currencyService;
+        private readonly ICustomerService _customerService;
+        private readonly IForumService _forumService;
+        private readonly IGenericAttributeService _genericAttributeService;
+        private readonly ILanguageService _languageService;
         private readonly ILocalizationService _localizationService;
-        private readonly IWorkContext _workContext;
-        private readonly IStoreContext _storeContext;
+        private readonly IManufacturerService _manufacturerService;
+        private readonly INopFileProvider _fileProvider;
+        private readonly IPageHeadBuilder _pageHeadBuilder;
+        private readonly IPermissionService _permissionService;
+        private readonly IPictureService _pictureService;
+        private readonly IProductService _productService;
+        private readonly IProductTagService _productTagService;
         private readonly ISitemapGenerator _sitemapGenerator;
+        private readonly IShoppingCartService _shoppingCartService;
+        private readonly IStaticCacheManager _cacheManager;
+        private readonly IStoreContext _storeContext;
         private readonly IThemeContext _themeContext;
         private readonly IThemeProvider _themeProvider;
-        private readonly IForumService _forumservice;
-        private readonly IGenericAttributeService _genericAttributeService;
-        private readonly IWebHelper _webHelper;
-        private readonly IPermissionService _permissionService;
-        private readonly IStaticCacheManager _cacheManager;
-        private readonly IPageHeadBuilder _pageHeadBuilder;
-        private readonly IPictureService _pictureService;
-        private readonly IHostingEnvironment _hostingEnvironment;
-        private readonly IProductTagService _productTagService;
+        private readonly ITopicService _topicService;
         private readonly IUrlHelperFactory _urlHelperFactory;
-        private readonly IActionContextAccessor _actionContextAccessor;
-        private readonly INopFileProvider _fileProvider;
-
-        private readonly CatalogSettings _catalogSettings;
-        private readonly StoreInformationSettings _storeInformationSettings;
-        private readonly CommonSettings _commonSettings;
-        private readonly BlogSettings _blogSettings;
-        private readonly NewsSettings _newsSettings;
-        private readonly ForumSettings _forumSettings;
+        private readonly IUrlRecordService _urlRecordService;
+        private readonly IWebHelper _webHelper;
+        private readonly IWorkContext _workContext;
         private readonly LocalizationSettings _localizationSettings;
-        private readonly CaptchaSettings _captchaSettings;
+        private readonly NewsSettings _newsSettings;
+        private readonly StoreInformationSettings _storeInformationSettings;
         private readonly VendorSettings _vendorSettings;
-        private readonly DisplayDefaultFooterItemSettings _displayDefaultFooterItemSettings;
 
         #endregion
 
         #region Ctor
 
-        public CommonModelFactory(ICategoryService categoryService,
-            IProductService productService,
-            IManufacturerService manufacturerService,
-            ITopicService topicService,
-            ILanguageService languageService,
+        public CommonModelFactory(BlogSettings blogSettings,
+            CaptchaSettings captchaSettings,
+            CatalogSettings catalogSettings,
+            CommonSettings commonSettings,
+            CustomerSettings customerSettings,
+            DisplayDefaultFooterItemSettings displayDefaultFooterItemSettings,
+            ForumSettings forumSettings,
+            IActionContextAccessor actionContextAccessor,
+            ICategoryService categoryService,
             ICurrencyService currencyService,
-            ILocalizationService localizationService,
-            IWorkContext workContext,
-            IStoreContext storeContext,
-            ISitemapGenerator sitemapGenerator,
-            IThemeContext themeContext,
-            IThemeProvider themeProvider,
+            ICustomerService customerService,
             IForumService forumService,
             IGenericAttributeService genericAttributeService,
-            IWebHelper webHelper,
-            IPermissionService permissionService,
-            IStaticCacheManager cacheManager,
+            ILanguageService languageService,
+            ILocalizationService localizationService,
+            IManufacturerService manufacturerService,
+            INopFileProvider fileProvider,
             IPageHeadBuilder pageHeadBuilder,
+            IPermissionService permissionService,
             IPictureService pictureService,
-            IHostingEnvironment hostingEnvironment,
-            IUrlHelperFactory urlHelperFactory,
-            IActionContextAccessor actionContextAccessor,
-            CatalogSettings catalogSettings,
-            StoreInformationSettings storeInformationSettings,
-            CommonSettings commonSettings,
-            BlogSettings blogSettings,
-            NewsSettings newsSettings,
-            ForumSettings forumSettings,
-            LocalizationSettings localizationSettings,
-            CaptchaSettings captchaSettings,
-            VendorSettings vendorSettings,
+            IProductService productService,
             IProductTagService productTagService,
-            DisplayDefaultFooterItemSettings displayDefaultFooterItemSettings,
-            INopFileProvider fileProvider)
+            ISitemapGenerator sitemapGenerator,
+            IShoppingCartService shoppingCartService,
+            IStaticCacheManager cacheManager,
+            IStoreContext storeContext,
+            IThemeContext themeContext,
+            IThemeProvider themeProvider,
+            ITopicService topicService,
+            IUrlHelperFactory urlHelperFactory,
+            IUrlRecordService urlRecordService,
+            IWebHelper webHelper,
+            IWorkContext workContext,
+            LocalizationSettings localizationSettings,
+            NewsSettings newsSettings,
+            StoreInformationSettings storeInformationSettings,
+            VendorSettings vendorSettings)
         {
+            this._blogSettings = blogSettings;
+            this._captchaSettings = captchaSettings;
+            this._catalogSettings = catalogSettings;
+            this._commonSettings = commonSettings;
+            this._customerSettings = customerSettings;
+            this._displayDefaultFooterItemSettings = displayDefaultFooterItemSettings;
+            this._forumSettings = forumSettings;
+            this._actionContextAccessor = actionContextAccessor;
             this._categoryService = categoryService;
-            this._productService = productService;
-            this._manufacturerService = manufacturerService;
-            this._topicService = topicService;
-            this._languageService = languageService;
             this._currencyService = currencyService;
+            this._customerService = customerService;
+            this._forumService = forumService;
+            this._genericAttributeService = genericAttributeService;
+            this._languageService = languageService;
             this._localizationService = localizationService;
-            this._workContext = workContext;
-            this._storeContext = storeContext;
+            this._manufacturerService = manufacturerService;
+            this._fileProvider = fileProvider;
+            this._pageHeadBuilder = pageHeadBuilder;
+            this._permissionService = permissionService;
+            this._pictureService = pictureService;
+            this._productService = productService;
+            this._productTagService = productTagService;
             this._sitemapGenerator = sitemapGenerator;
+            this._shoppingCartService = shoppingCartService;
+            this._cacheManager = cacheManager;
+            this._storeContext = storeContext;
             this._themeContext = themeContext;
             this._themeProvider = themeProvider;
-            this._forumservice = forumService;
-            this._genericAttributeService = genericAttributeService;
-            this._webHelper = webHelper;
-            this._permissionService = permissionService;
-            this._cacheManager = cacheManager;
-            this._pageHeadBuilder = pageHeadBuilder;
-            this._pictureService = pictureService;
-            this._hostingEnvironment = hostingEnvironment;
+            this._topicService = topicService;
             this._urlHelperFactory = urlHelperFactory;
-            this._actionContextAccessor = actionContextAccessor;
-            this._catalogSettings = catalogSettings;
-            this._storeInformationSettings = storeInformationSettings;
-            this._commonSettings = commonSettings;
-            this._blogSettings = blogSettings;
-            this._newsSettings = newsSettings;
-            this._forumSettings = forumSettings;
+            this._urlRecordService = urlRecordService;
+            this._webHelper = webHelper;
+            this._workContext = workContext;
             this._localizationSettings = localizationSettings;
-            this._captchaSettings = captchaSettings;
+            this._newsSettings = newsSettings;
+            this._storeInformationSettings = storeInformationSettings;
             this._vendorSettings = vendorSettings;
-            this._productTagService = productTagService;
-            this._displayDefaultFooterItemSettings = displayDefaultFooterItemSettings;
-            this._fileProvider = fileProvider;
         }
 
         #endregion
@@ -172,7 +179,7 @@ namespace Nop.Web.Factories
             var customer = _workContext.CurrentCustomer;
             if (_forumSettings.AllowPrivateMessages && !customer.IsGuest())
             {
-                var privateMessages = _forumservice.GetAllPrivateMessages(_storeContext.CurrentStore.Id,
+                var privateMessages = _forumService.GetAllPrivateMessages(_storeContext.CurrentStore.Id,
                     0, customer.Id, false, null, false, string.Empty, 0, 1);
 
                 if (privateMessages.TotalCount > 0)
@@ -196,10 +203,10 @@ namespace Nop.Web.Factories
         {
             var model = new LogoModel
             {
-                StoreName = _storeContext.CurrentStore.GetLocalized(x => x.Name)
+                StoreName = _localizationService.GetLocalized(_storeContext.CurrentStore, x => x.Name)
             };
 
-            var cacheKey = string.Format(ModelCacheEventConsumer.STORE_LOGO_PATH, _storeContext.CurrentStore.Id, _themeContext.WorkingThemeName, _webHelper.IsCurrentConnectionSecured());
+            var cacheKey = string.Format(NopModelCacheDefaults.StoreLogoPath, _storeContext.CurrentStore.Id, _themeContext.WorkingThemeName, _webHelper.IsCurrentConnectionSecured());
             model.LogoPath = _cacheManager.Get(cacheKey, () =>
             {
                 var logo = "";
@@ -225,7 +232,7 @@ namespace Nop.Web.Factories
         /// <returns>Language selector model</returns>
         public virtual LanguageSelectorModel PrepareLanguageSelectorModel()
         {
-            var availableLanguages = _cacheManager.Get(string.Format(ModelCacheEventConsumer.AVAILABLE_LANGUAGES_MODEL_KEY, _storeContext.CurrentStore.Id), () =>
+            var availableLanguages = _cacheManager.Get(string.Format(NopModelCacheDefaults.AvailableLanguagesModelKey, _storeContext.CurrentStore.Id), () =>
             {
                 var result = _languageService
                     .GetAllLanguages(storeId: _storeContext.CurrentStore.Id)
@@ -245,7 +252,7 @@ namespace Nop.Web.Factories
                 AvailableLanguages = availableLanguages,
                 UseImages = _localizationSettings.UseImagesForLanguageSelection
             };
-            
+
             return model;
         }
 
@@ -255,7 +262,7 @@ namespace Nop.Web.Factories
         /// <returns>Currency selector model</returns>
         public virtual CurrencySelectorModel PrepareCurrencySelectorModel()
         {
-            var availableCurrencies = _cacheManager.Get(string.Format(ModelCacheEventConsumer.AVAILABLE_CURRENCIES_MODEL_KEY, _workContext.WorkingLanguage.Id, _storeContext.CurrentStore.Id), () =>
+            var availableCurrencies = _cacheManager.Get(string.Format(NopModelCacheDefaults.AvailableCurrenciesModelKey, _workContext.WorkingLanguage.Id, _storeContext.CurrentStore.Id), () =>
             {
                 var result = _currencyService
                     .GetAllCurrencies(storeId: _storeContext.CurrentStore.Id)
@@ -271,7 +278,7 @@ namespace Nop.Web.Factories
                         var currencyModel = new CurrencyModel
                         {
                             Id = x.Id,
-                            Name = x.GetLocalized(y => y.Name),
+                            Name = _localizationService.GetLocalized(x, y => y.Name),
                             CurrencySymbol = currencySymbol
                         };
                         return currencyModel;
@@ -320,9 +327,9 @@ namespace Nop.Web.Factories
 
                 //notifications here
                 if (_forumSettings.ShowAlertForPM &&
-                    !customer.GetAttribute<bool>(SystemCustomerAttributeNames.NotifiedAboutNewPrivateMessages, _storeContext.CurrentStore.Id))
+                    !_genericAttributeService.GetAttribute<bool>(customer, NopCustomerDefaults.NotifiedAboutNewPrivateMessagesAttribute, _storeContext.CurrentStore.Id))
                 {
-                    _genericAttributeService.SaveAttribute(customer, SystemCustomerAttributeNames.NotifiedAboutNewPrivateMessages, true, _storeContext.CurrentStore.Id);
+                    _genericAttributeService.SaveAttribute(customer, NopCustomerDefaults.NotifiedAboutNewPrivateMessagesAttribute, true, _storeContext.CurrentStore.Id);
                     alertMessage = string.Format(_localizationService.GetResource("PrivateMessages.YouHaveUnreadPM"), unreadMessageCount);
                 }
             }
@@ -330,7 +337,7 @@ namespace Nop.Web.Factories
             var model = new HeaderLinksModel
             {
                 IsAuthenticated = customer.IsRegistered(),
-                CustomerName = customer.IsRegistered() ? customer.FormatUserName() : "",
+                CustomerName = customer.IsRegistered() ? _customerService.FormatUserName(customer) : "",
                 ShoppingCartEnabled = _permissionService.Authorize(StandardPermissionProvider.EnableShoppingCart),
                 WishlistEnabled = _permissionService.Authorize(StandardPermissionProvider.EnableWishlist),
                 AllowPrivateMessages = customer.IsRegistered() && _forumSettings.AllowPrivateMessages,
@@ -340,16 +347,11 @@ namespace Nop.Web.Factories
             //performance optimization (use "HasShoppingCartItems" property)
             if (customer.HasShoppingCartItems)
             {
-                model.ShoppingCartItems = customer.ShoppingCartItems
-                    .Where(sci => sci.ShoppingCartType == ShoppingCartType.ShoppingCart)
-                    .LimitPerStore(_storeContext.CurrentStore.Id)
-                    .ToList()
-                    .GetTotalProducts();
-                model.WishlistItems = customer.ShoppingCartItems
-                    .Where(sci => sci.ShoppingCartType == ShoppingCartType.Wishlist)
-                    .LimitPerStore(_storeContext.CurrentStore.Id)
-                    .ToList()
-                    .GetTotalProducts();
+                model.ShoppingCartItems = _shoppingCartService.GetShoppingCart(customer, ShoppingCartType.ShoppingCart, _storeContext.CurrentStore.Id)
+                    .Sum(item => item.Quantity);
+
+                model.WishlistItems = _shoppingCartService.GetShoppingCart(customer, ShoppingCartType.Wishlist, _storeContext.CurrentStore.Id)
+                    .Sum(item => item.Quantity);
             }
 
             return model;
@@ -365,7 +367,7 @@ namespace Nop.Web.Factories
 
             var model = new AdminHeaderLinksModel
             {
-                ImpersonatedCustomerName = customer.IsRegistered() ? customer.FormatUserName() : "",
+                ImpersonatedCustomerName = customer.IsRegistered() ? _customerService.FormatUserName(customer) : "",
                 IsCustomerImpersonated = _workContext.OriginalCustomerIfImpersonated != null,
                 DisplayAdminLink = _permissionService.Authorize(StandardPermissionProvider.AccessAdminPanel),
                 EditPageUrl = _pageHeadBuilder.GetEditPageUrl()
@@ -400,7 +402,7 @@ namespace Nop.Web.Factories
         public virtual FooterModel PrepareFooterModel()
         {
             //footer topics
-            var topicCacheKey = string.Format(ModelCacheEventConsumer.TOPIC_FOOTER_MODEL_KEY,
+            var topicCacheKey = string.Format(NopModelCacheDefaults.TopicFooterModelKey,
                 _workContext.WorkingLanguage.Id,
                 _storeContext.CurrentStore.Id,
                 string.Join(",", _workContext.CurrentCustomer.GetCustomerRoleIds()));
@@ -410,8 +412,8 @@ namespace Nop.Web.Factories
                 .Select(t => new FooterModel.FooterTopicModel
                 {
                     Id = t.Id,
-                    Name = t.GetLocalized(x => x.Title),
-                    SeName = t.GetSeName(),
+                    Name = _localizationService.GetLocalized(t, x => x.Title),
+                    SeName = _urlRecordService.GetSeName(t),
                     IncludeInFooterColumn1 = t.IncludeInFooterColumn1,
                     IncludeInFooterColumn2 = t.IncludeInFooterColumn2,
                     IncludeInFooterColumn3 = t.IncludeInFooterColumn3
@@ -422,7 +424,7 @@ namespace Nop.Web.Factories
             //model
             var model = new FooterModel
             {
-                StoreName = _storeContext.CurrentStore.GetLocalized(x => x.Name),
+                StoreName = _localizationService.GetLocalized(_storeContext.CurrentStore, x => x.Name),
                 WishlistEnabled = _permissionService.Authorize(StandardPermissionProvider.EnableWishlist),
                 ShoppingCartEnabled = _permissionService.Authorize(StandardPermissionProvider.EnableShoppingCart),
                 SitemapEnabled = _commonSettings.SitemapEnabled,
@@ -436,6 +438,7 @@ namespace Nop.Web.Factories
                 DisplayTaxShippingInfoFooter = _catalogSettings.DisplayTaxShippingInfoFooter,
                 HidePoweredByNopCommerce = _storeInformationSettings.HidePoweredByNopCommerce,
                 AllowCustomersToApplyForVendorAccount = _vendorSettings.AllowCustomersToApplyForVendorAccount,
+                AllowCustomersToCheckGiftCardBalance = _customerSettings.AllowCustomersToCheckGiftCardBalance && _captchaSettings.Enabled,
                 Topics = cachedTopicModel,
                 DisplaySitemapFooterItem = _displayDefaultFooterItemSettings.DisplaySitemapFooterItem,
                 DisplayContactUsFooterItem = _displayDefaultFooterItemSettings.DisplayContactUsFooterItem,
@@ -471,11 +474,11 @@ namespace Nop.Web.Factories
             if (!excludeProperties)
             {
                 model.Email = _workContext.CurrentCustomer.Email;
-                model.FullName = _workContext.CurrentCustomer.GetFullName();
+                model.FullName = _customerService.GetCustomerFullName(_workContext.CurrentCustomer);
             }
             model.SubjectEnabled = _commonSettings.SubjectFieldOnContactUsForm;
             model.DisplayCaptcha = _captchaSettings.Enabled && _captchaSettings.ShowOnContactUsPage;
-            
+
             return model;
         }
 
@@ -497,14 +500,14 @@ namespace Nop.Web.Factories
             if (!excludeProperties)
             {
                 model.Email = _workContext.CurrentCustomer.Email;
-                model.FullName = _workContext.CurrentCustomer.GetFullName();
+                model.FullName = _customerService.GetCustomerFullName(_workContext.CurrentCustomer);
             }
 
             model.SubjectEnabled = _commonSettings.SubjectFieldOnContactUsForm;
             model.DisplayCaptcha = _captchaSettings.Enabled && _captchaSettings.ShowOnContactUsPage;
             model.VendorId = vendor.Id;
-            model.VendorName = vendor.GetLocalized(x => x.Name);
-            
+            model.VendorName = _localizationService.GetLocalized(vendor, x => x.Name);
+
             return model;
         }
 
@@ -515,7 +518,7 @@ namespace Nop.Web.Factories
         /// <returns>Sitemap model</returns>
         public virtual SitemapModel PrepareSitemapModel(SitemapPageModel pageModel)
         {
-            var cacheKey = string.Format(ModelCacheEventConsumer.SITEMAP_PAGE_MODEL_KEY,
+            var cacheKey = string.Format(NopModelCacheDefaults.SitemapPageModelKey,
                 _workContext.WorkingLanguage.Id,
                 string.Join(",", _workContext.CurrentCustomer.GetCustomerRoleIds()),
                 _storeContext.CurrentStore.Id);
@@ -524,7 +527,7 @@ namespace Nop.Web.Factories
             {
                 //get URL helper
                 var urlHelper = _urlHelperFactory.GetUrlHelper(_actionContextAccessor.ActionContext);
-                
+
                 var model = new SitemapModel();
 
                 //prepare common items
@@ -600,8 +603,8 @@ namespace Nop.Web.Factories
                 model.Items.AddRange(topics.Select(topic => new SitemapModel.SitemapItemModel
                 {
                     GroupTitle = commonGroupTitle,
-                    Name = topic.GetLocalized(x => x.Title),
-                    Url = urlHelper.RouteUrl("Topic", new { SeName = topic.GetSeName() })
+                    Name = _localizationService.GetLocalized(topic, x => x.Title),
+                    Url = urlHelper.RouteUrl("Topic", new { SeName = _urlRecordService.GetSeName(topic) })
                 }));
 
                 //categories
@@ -612,8 +615,8 @@ namespace Nop.Web.Factories
                     model.Items.AddRange(categories.Select(category => new SitemapModel.SitemapItemModel
                     {
                         GroupTitle = categoriesGroupTitle,
-                        Name = category.GetLocalized(x => x.Name),
-                        Url = urlHelper.RouteUrl("Category", new { SeName = category.GetSeName() })
+                        Name = _localizationService.GetLocalized(category, x => x.Name),
+                        Url = urlHelper.RouteUrl("Category", new { SeName = _urlRecordService.GetSeName(category) })
                     }));
                 }
 
@@ -625,8 +628,8 @@ namespace Nop.Web.Factories
                     model.Items.AddRange(manufacturers.Select(manufacturer => new SitemapModel.SitemapItemModel
                     {
                         GroupTitle = manufacturersGroupTitle,
-                        Name = manufacturer.GetLocalized(x => x.Name),
-                        Url = urlHelper.RouteUrl("Manufacturer", new { SeName = manufacturer.GetSeName() })
+                        Name = _localizationService.GetLocalized(manufacturer, x => x.Name),
+                        Url = urlHelper.RouteUrl("Manufacturer", new { SeName = _urlRecordService.GetSeName(manufacturer) })
                     }));
                 }
 
@@ -638,8 +641,8 @@ namespace Nop.Web.Factories
                     model.Items.AddRange(products.Select(product => new SitemapModel.SitemapItemModel
                     {
                         GroupTitle = productsGroupTitle,
-                        Name = product.GetLocalized(x => x.Name),
-                        Url = urlHelper.RouteUrl("Product", new { SeName = product.GetSeName() })
+                        Name = _localizationService.GetLocalized(product, x => x.Name),
+                        Url = urlHelper.RouteUrl("Product", new { SeName = _urlRecordService.GetSeName(product) })
                     }));
                 }
 
@@ -651,8 +654,8 @@ namespace Nop.Web.Factories
                     model.Items.AddRange(productTags.Select(productTag => new SitemapModel.SitemapItemModel
                     {
                         GroupTitle = productTagsGroupTitle,
-                        Name = productTag.GetLocalized(x => x.Name),
-                        Url = urlHelper.RouteUrl("ProductsByTag", new { SeName = productTag.GetSeName() })
+                        Name = _localizationService.GetLocalized(productTag, x => x.Name),
+                        Url = urlHelper.RouteUrl("ProductsByTag", new { SeName = _urlRecordService.GetSeName(productTag) })
                     }));
                 }
 
@@ -677,7 +680,7 @@ namespace Nop.Web.Factories
         /// <returns>Sitemap as string in XML format</returns>
         public virtual string PrepareSitemapXml(int? id)
         {
-            var cacheKey = string.Format(ModelCacheEventConsumer.SITEMAP_SEO_MODEL_KEY, id,
+            var cacheKey = string.Format(NopModelCacheDefaults.SitemapSeoModelKey, id,
                 _workContext.WorkingLanguage.Id,
                 string.Join(",", _workContext.CurrentCustomer.GetCustomerRoleIds()),
                 _storeContext.CurrentStore.Id);
@@ -713,26 +716,13 @@ namespace Nop.Web.Factories
         /// Prepare the favicon model
         /// </summary>
         /// <returns>Favicon model</returns>
-        public virtual FaviconModel PrepareFaviconModel()
+        public virtual FaviconAndAppIconsModel PrepareFaviconAndAppIconsModel()
         {
-            var model = new FaviconModel();
-
-            //try loading a store specific favicon
-
-            var faviconFileName = $"favicon-{_storeContext.CurrentStore.Id}.ico";
-            var localFaviconPath = _fileProvider.Combine(_hostingEnvironment.WebRootPath, faviconFileName);
-            if (!_fileProvider.FileExists(localFaviconPath))
+            var model = new FaviconAndAppIconsModel
             {
-                //try loading a generic favicon
-                faviconFileName = "favicon.ico";
-                localFaviconPath = _fileProvider.Combine(_hostingEnvironment.WebRootPath, faviconFileName);
-                if (!_fileProvider.FileExists(localFaviconPath))
-                {
-                    return model;
-                }
-            }
+                HeadCode = _commonSettings.FaviconAndAppIconsHeadCode
+            };
 
-            model.FaviconUrl = _webHelper.GetStoreLocation() + faviconFileName;
             return model;
         }
 
@@ -782,6 +772,9 @@ namespace Nop.Web.Factories
                     "/boards/topicmove",
                     "/boards/topicwatch",
                     "/cart",
+                    "/changecurrency",
+                    "/changelanguage",
+                    "/changetaxtype",
                     "/checkout",
                     "/checkout/billingaddress",
                     "/checkout/completed",
@@ -802,6 +795,7 @@ namespace Nop.Web.Factories
                     "/customer/info",
                     "/deletepm",
                     "/emailwishlist",
+                    "/eucookielawaccept",
                     "/inboxupdate",
                     "/newsletter/subscriptionactivation",
                     "/onepagecheckout",
@@ -813,6 +807,7 @@ namespace Nop.Web.Factories
                     "/returnrequest",
                     "/returnrequest/history",
                     "/rewardpoints/history",
+                    "/search?",
                     "/sendpm",
                     "/sentupdate",
                     "/shoppingcart/*",
@@ -830,20 +825,23 @@ namespace Nop.Web.Factories
                 sb.Append("User-agent: *");
                 sb.Append(newLine);
                 //sitemaps
-                if (_localizationSettings.SeoFriendlyUrlsForLanguagesEnabled)
+                if (_commonSettings.SitemapEnabled)
                 {
-                    //URLs are localizable. Append SEO code
-                    foreach (var language in _languageService.GetAllLanguages(storeId: _storeContext.CurrentStore.Id))
+                    if (_localizationSettings.SeoFriendlyUrlsForLanguagesEnabled)
                     {
-                        sb.AppendFormat("Sitemap: {0}{1}/sitemap.xml", _webHelper.GetStoreLocation(), language.UniqueSeoCode);
+                        //URLs are localizable. Append SEO code
+                        foreach (var language in _languageService.GetAllLanguages(storeId: _storeContext.CurrentStore.Id))
+                        {
+                            sb.AppendFormat("Sitemap: {0}{1}/sitemap.xml", _webHelper.GetStoreLocation(), language.UniqueSeoCode);
+                            sb.Append(newLine);
+                        }
+                    }
+                    else
+                    {
+                        //localizable paths (without SEO code)
+                        sb.AppendFormat("Sitemap: {0}sitemap.xml", _webHelper.GetStoreLocation());
                         sb.Append(newLine);
                     }
-                }
-                else
-                {
-                    //localizable paths (without SEO code)
-                    sb.AppendFormat("Sitemap: {0}sitemap.xml", _webHelper.GetStoreLocation());
-                    sb.Append(newLine);
                 }
                 //host
                 sb.AppendFormat("Host: {0}", _webHelper.GetStoreLocation());
@@ -885,7 +883,7 @@ namespace Nop.Web.Factories
 
             return sb.ToString();
         }
-        
+
         #endregion
     }
 }

@@ -6,9 +6,9 @@ using Nop.Services.Catalog;
 using Nop.Services.Customers;
 using Nop.Services.Helpers;
 using Nop.Services.Localization;
-using Nop.Services.Orders;
 using Nop.Services.Stores;
 using Nop.Services.Tax;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.ShoppingCart;
 using Nop.Web.Framework.Extensions;
 
@@ -135,7 +135,7 @@ namespace Nop.Web.Areas.Admin.Factories
                     shoppingCartModel.CustomerEmail = customer.IsRegistered()
                         ? customer.Email : _localizationService.GetResource("Admin.Customers.Guest");
                     shoppingCartModel.TotalItems = customer.ShoppingCartItems
-                        .Where(item => item.ShoppingCartType == searchModel.ShoppingCartType).ToList().GetTotalProducts();
+                        .Where(item => item.ShoppingCartType == searchModel.ShoppingCartType).Sum(item => item.Quantity);
 
                     return shoppingCartModel;
                 }),
@@ -168,13 +168,7 @@ namespace Nop.Web.Areas.Admin.Factories
                 Data = items.PaginationByRequestModel(searchModel).Select(item =>
                 {
                     //fill in model values from the entity
-                    var itemModel = new ShoppingCartItemModel
-                    {
-                        Id = item.Id,
-                        ProductId = item.ProductId,
-                        Quantity = item.Quantity,
-                        ProductName = item.Product?.Name
-                    };
+                    var itemModel = item.ToModel<ShoppingCartItemModel>();
 
                     //convert dates to the user time
                     itemModel.UpdatedOn = _dateTimeHelper.ConvertToUserTime(item.UpdatedOnUtc, DateTimeKind.Utc);

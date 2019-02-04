@@ -10,29 +10,33 @@ using Newtonsoft.Json.Converters;
 using Nop.Core;
 using Nop.Core.Infrastructure;
 using Nop.Core.Plugins;
+using Nop.Services.Common;
 using Nop.Services.Themes;
 
 namespace Nop.Services.Plugins
 {
     /// <summary>
-    /// Represents the implementation of a service for uploading application extensions (plugins or themes)
+    /// Represents the implementation of a service for uploading application extensions (plugins or themes) and favicon and app icons
     /// </summary>
     public class UploadService : IUploadService
     {
         #region Fields
 
-        protected readonly IThemeProvider _themeProvider;
-        protected readonly INopFileProvider _fileProvider;
+        private readonly INopFileProvider _fileProvider;
+        private readonly IStoreContext _storeContext;
+        private readonly IThemeProvider _themeProvider;
 
         #endregion
 
         #region Ctor
 
-        public UploadService(IThemeProvider themeProvider,
-            INopFileProvider fileProvider)
+        public UploadService(INopFileProvider fileProvider,
+            IStoreContext storeContext,
+            IThemeProvider themeProvider)
         {
-            this._themeProvider = themeProvider;
             this._fileProvider = fileProvider;
+            this._storeContext = storeContext;
+            this._themeProvider = themeProvider;
         }
 
         #endregion
@@ -50,15 +54,15 @@ namespace Nop.Services.Plugins
             {
                 //try to get the entry containing information about the uploaded items 
                 var uploadedItemsFileEntry = archive.Entries
-                    .FirstOrDefault(entry => entry.Name.Equals(UploadedItemsFileName, StringComparison.InvariantCultureIgnoreCase)
+                    .FirstOrDefault(entry => entry.Name.Equals(NopPluginDefaults.UploadedItemsFileName, StringComparison.InvariantCultureIgnoreCase)
                         && string.IsNullOrEmpty(_fileProvider.GetDirectoryName(entry.FullName)));
                 if (uploadedItemsFileEntry == null)
                     return null;
 
                 //read the content of this entry if exists
                 using (var unzippedEntryStream = uploadedItemsFileEntry.Open())
-                    using (var reader = new StreamReader(unzippedEntryStream))
-                        return JsonConvert.DeserializeObject<IList<UploadedItem>>(reader.ReadToEnd());
+                using (var reader = new StreamReader(unzippedEntryStream))
+                    return JsonConvert.DeserializeObject<IList<UploadedItem>>(reader.ReadToEnd());
             }
         }
 
@@ -70,24 +74,24 @@ namespace Nop.Services.Plugins
         protected virtual IDescriptor UploadSingleItem(string archivePath)
         {
             //get path to the plugins directory
-            var pluginsDirectory = _fileProvider.MapPath(PluginManager.PluginsPath);
+            var pluginsDirectory = _fileProvider.MapPath(NopPluginDefaults.Path);
 
             //get path to the themes directory
             var themesDirectory = string.Empty;
-            if (!string.IsNullOrEmpty(_themeProvider.ThemesPath))
-                themesDirectory = _fileProvider.MapPath(_themeProvider.ThemesPath);
+            if (!string.IsNullOrEmpty(NopPluginDefaults.ThemesPath))
+                themesDirectory = _fileProvider.MapPath(NopPluginDefaults.ThemesPath);
 
             IDescriptor descriptor = null;
-            var uploadedItemDirectoryName = string.Empty;
+            string uploadedItemDirectoryName;
             using (var archive = ZipFile.OpenRead(archivePath))
             {
                 //the archive should contain only one root directory (the plugin one or the theme one)
                 var rootDirectories = archive.Entries.Where(entry => entry.FullName.Count(ch => ch == '/') == 1 && entry.FullName.EndsWith("/")).ToList();
                 if (rootDirectories.Count != 1)
                 {
-                    throw new Exception($"The archive should contain only one root plugin or theme directory. " +
-                        $"For example, Payments.PayPalDirect or DefaultClean. " +
-                        $"To upload multiple items, the archive should have the '{UploadedItemsFileName}' file in the root");
+                    throw new Exception("The archive should contain only one root plugin or theme directory. " +
+                        "For example, Payments.PayPalDirect or DefaultClean. " +
+                        $"To upload multiple items, the archive should have the '{NopPluginDefaults.UploadedItemsFileName}' file in the root");
                 }
 
                 //get directory name (remove the ending /)
@@ -98,11 +102,11 @@ namespace Nop.Services.Plugins
                 {
                     //whether it's a plugin descriptor
                     var isPluginDescriptor = entry.FullName
-                        .Equals($"{uploadedItemDirectoryName}/{PluginManager.PluginDescriptionFileName}", StringComparison.InvariantCultureIgnoreCase);
+                        .Equals($"{uploadedItemDirectoryName}/{NopPluginDefaults.DescriptionFileName}", StringComparison.InvariantCultureIgnoreCase);
 
                     //or whether it's a theme descriptor
                     var isThemeDescriptor = entry.FullName
-                        .Equals($"{uploadedItemDirectoryName}/{_themeProvider.ThemeDescriptionFileName}", StringComparison.InvariantCultureIgnoreCase);
+                        .Equals($"{uploadedItemDirectoryName}/{NopPluginDefaults.ThemeDescriptionFileName}", StringComparison.InvariantCultureIgnoreCase);
 
                     if (!isPluginDescriptor && !isThemeDescriptor)
                         continue;
@@ -114,10 +118,10 @@ namespace Nop.Services.Plugins
                             //whether a plugin is upload 
                             if (isPluginDescriptor)
                             {
-                                descriptor = PluginManager.GetPluginDescriptorFromText(reader.ReadToEnd());
+                                descriptor = PluginDescriptor.GetPluginDescriptorFromText(reader.ReadToEnd());
 
                                 //ensure that the plugin current version is supported
-                                if (!(descriptor as PluginDescriptor).SupportedVersions.Contains(NopVersion.CurrentVersion))
+                                if (!((PluginDescriptor)descriptor).SupportedVersions.Contains(NopVersion.CurrentVersion))
                                     throw new Exception($"This plugin doesn't support the current version - {NopVersion.CurrentVersion}");
                             }
 
@@ -162,12 +166,12 @@ namespace Nop.Services.Plugins
         protected virtual IList<IDescriptor> UploadMultipleItems(string archivePath, IList<UploadedItem> uploadedItems)
         {
             //get path to the plugins directory
-            var pluginsDirectory = _fileProvider.MapPath(PluginManager.PluginsPath);
+            var pluginsDirectory = _fileProvider.MapPath(NopPluginDefaults.Path);
 
             //get path to the themes directory
             var themesDirectory = string.Empty;
-            if (!string.IsNullOrEmpty(_themeProvider.ThemesPath))
-                themesDirectory = _fileProvider.MapPath(_themeProvider.ThemesPath);
+            if (!string.IsNullOrEmpty(NopPluginDefaults.ThemesPath))
+                themesDirectory = _fileProvider.MapPath(NopPluginDefaults.ThemesPath);
 
             //get descriptors of items contained in the archive
             var descriptors = new List<IDescriptor>();
@@ -188,10 +192,10 @@ namespace Nop.Services.Plugins
                     //get path to the descriptor entry in the archive
                     var descriptorPath = string.Empty;
                     if (item.Type == UploadedItemType.Plugin)
-                        descriptorPath = $"{itemPath}{PluginManager.PluginDescriptionFileName}";
+                        descriptorPath = $"{itemPath}{NopPluginDefaults.DescriptionFileName}";
 
-                    if (item.Type == UploadedItemType.Theme && !string.IsNullOrEmpty(_themeProvider.ThemeDescriptionFileName))
-                        descriptorPath = $"{itemPath}{_themeProvider.ThemeDescriptionFileName}";
+                    if (item.Type == UploadedItemType.Theme && !string.IsNullOrEmpty(NopPluginDefaults.ThemeDescriptionFileName))
+                        descriptorPath = $"{itemPath}{NopPluginDefaults.ThemeDescriptionFileName}";
 
                     //try to get the descriptor entry
                     var descriptorEntry = archive.Entries.FirstOrDefault(entry => entry.FullName.Equals(descriptorPath, StringComparison.InvariantCultureIgnoreCase));
@@ -206,20 +210,21 @@ namespace Nop.Services.Plugins
                         {
                             //whether a plugin is upload 
                             if (item.Type == UploadedItemType.Plugin)
-                                descriptor = PluginManager.GetPluginDescriptorFromText(reader.ReadToEnd());
+                                descriptor = PluginDescriptor.GetPluginDescriptorFromText(reader.ReadToEnd());
 
                             //or whether a theme is upload 
                             if (item.Type == UploadedItemType.Theme)
                                 descriptor = _themeProvider.GetThemeDescriptorFromText(reader.ReadToEnd());
                         }
                     }
+
                     if (descriptor == null)
                         continue;
 
                     //ensure that the plugin current version is supported
                     if (descriptor is PluginDescriptor pluginDescriptor && !pluginDescriptor.SupportedVersions.Contains(NopVersion.CurrentVersion))
                         continue;
-                    
+
                     //get path to upload
                     var uploadedItemDirectoryName = _fileProvider.GetFileName(itemPath.TrimEnd('/'));
                     var pathToUpload = _fileProvider.Combine(item.Type == UploadedItemType.Plugin ? pluginsDirectory : themesDirectory, uploadedItemDirectoryName);
@@ -238,7 +243,7 @@ namespace Nop.Services.Plugins
                         var fileName = entry.FullName.Substring(itemPath.Length);
                         if (string.IsNullOrEmpty(fileName))
                             continue;
-                        
+
                         var filePath = _fileProvider.Combine(pathToUpload, fileName.Replace("/", "\\"));
                         var directoryPath = _fileProvider.GetDirectoryName(filePath);
 
@@ -282,7 +287,7 @@ namespace Nop.Services.Plugins
                     throw new Exception("Only zip archives are supported");
 
                 //ensure that temp directory is created
-                var tempDirectory = _fileProvider.MapPath(UploadsTempPath);
+                var tempDirectory = _fileProvider.MapPath(NopPluginDefaults.UploadsTempPath);
                 _fileProvider.CreateDirectory(tempDirectory);
 
                 //copy original archive to the temp directory
@@ -311,19 +316,50 @@ namespace Nop.Services.Plugins
             return descriptors;
         }
 
-        #endregion
-
-        #region Properties
-
         /// <summary>
-        /// Gets the path to temp directory with uploads
+        /// Upload favicon and app icons archive
         /// </summary>
-        public string UploadsTempPath => "~/App_Data/TempUploads";
+        /// <param name="archivefile">Archive file which contains a set of special icons for different OS and devices</param>
+        public virtual void UploadIconsArchive(IFormFile archivefile)
+        {
+            if (archivefile == null)
+                throw new ArgumentNullException(nameof(archivefile));
 
-        /// <summary>
-        /// Gets the name of the file containing information about the uploaded items
-        /// </summary>
-        public string UploadedItemsFileName => "uploadedItems.json";
+            var zipFilePath = string.Empty;
+            try
+            {
+                //only zip archives are supported
+                if (!_fileProvider.GetFileExtension(archivefile.FileName)?.Equals(".zip", StringComparison.InvariantCultureIgnoreCase) ?? true)
+                    throw new Exception("Only zip archives are supported");
+
+                //check if there is a folder for favicon and app icons for the current store (all store icons folders are in wwwroot/icons and are called icons_{storeId})
+                //if the folder does not exist, create it
+                //if the folder is already there - we delete it (since the pictures in the folder are in the unpacked version, there will be many files and it is easier for us to delete the folder than to delete all the files one by one) and create anew
+                var storeIconsPath = _fileProvider.GetAbsolutePath(string.Format(NopCommonDefaults.FaviconAndAppIconsPath, _storeContext.ActiveStoreScopeConfiguration));
+
+                if (!_fileProvider.DirectoryExists(storeIconsPath))
+                {
+                    _fileProvider.CreateDirectory(storeIconsPath);
+                }
+                else
+                {
+                    _fileProvider.DeleteDirectory(storeIconsPath);
+                    _fileProvider.CreateDirectory(storeIconsPath);
+                }
+
+                zipFilePath = _fileProvider.Combine(storeIconsPath, archivefile.FileName);
+                using (var fileStream = new FileStream(zipFilePath, FileMode.Create))
+                    archivefile.CopyTo(fileStream);
+
+                ZipFile.ExtractToDirectory(zipFilePath, storeIconsPath);
+            }
+            finally
+            {
+                //delete the zip file and leave only unpacked files in the folder
+                if (!string.IsNullOrEmpty(zipFilePath))
+                    _fileProvider.DeleteFile(zipFilePath);
+            }
+        }
 
         #endregion
 

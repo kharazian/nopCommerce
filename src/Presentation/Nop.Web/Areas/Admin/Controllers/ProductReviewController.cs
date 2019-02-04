@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Nop.Core;
@@ -24,7 +25,9 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly CatalogSettings _catalogSettings;
         private readonly ICustomerActivityService _customerActivityService;
         private readonly IEventPublisher _eventPublisher;
+        private readonly IGenericAttributeService _genericAttributeService;
         private readonly ILocalizationService _localizationService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly IProductReviewModelFactory _productReviewModelFactory;
         private readonly IProductService _productService;
@@ -38,7 +41,9 @@ namespace Nop.Web.Areas.Admin.Controllers
         public ProductReviewController(CatalogSettings catalogSettings,
             ICustomerActivityService customerActivityService,
             IEventPublisher eventPublisher,
+            IGenericAttributeService genericAttributeService,
             ILocalizationService localizationService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             IProductReviewModelFactory productReviewModelFactory,
             IProductService productService,
@@ -48,7 +53,9 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._catalogSettings = catalogSettings;
             this._customerActivityService = customerActivityService;
             this._eventPublisher = eventPublisher;
+            this._genericAttributeService = genericAttributeService;
             this._localizationService = localizationService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._productReviewModelFactory = productReviewModelFactory;
             this._productService = productService;
@@ -142,7 +149,8 @@ namespace Nop.Web.Areas.Admin.Controllers
                 if (productReview.IsApproved && !string.IsNullOrEmpty(productReview.ReplyText)
                     && _catalogSettings.NotifyCustomerAboutProductReviewReply && !productReview.CustomerNotifiedOfReply)
                 {
-                    var customerLanguageId = productReview.Customer.GetAttribute<int>(SystemCustomerAttributeNames.LanguageId, productReview.StoreId);
+                    var customerLanguageId = _genericAttributeService.GetAttribute<int>(productReview.Customer,
+                        NopCustomerDefaults.LanguageIdAttribute, productReview.StoreId);
                     var queuedEmailIds = _workflowMessageService.SendProductReviewReplyCustomerNotificationMessage(productReview, customerLanguageId);
                     if (queuedEmailIds.Any())
                         productReview.CustomerNotifiedOfReply = true;
@@ -165,7 +173,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                         _eventPublisher.Publish(new ProductReviewApprovedEvent(productReview));
                 }
 
-                SuccessNotification(_localizationService.GetResource("Admin.Catalog.ProductReviews.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Catalog.ProductReviews.Updated"));
 
                 return continueEditing ? RedirectToAction("Edit", new { id = productReview.Id }) : RedirectToAction("List");
             }
@@ -202,7 +210,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             //update product totals
             _productService.UpdateProductReviewTotals(product);
 
-            SuccessNotification(_localizationService.GetResource("Admin.Catalog.ProductReviews.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.Catalog.ProductReviews.Deleted"));
 
             return RedirectToAction("List");
         }
@@ -323,6 +331,20 @@ namespace Nop.Web.Areas.Admin.Controllers
                           })
                 .ToList();
             return Json(result);
+        }
+
+        [HttpPost]
+        public virtual IActionResult ProductReviewReviewTypeMappingList(ProductReviewReviewTypeMappingSearchModel searchModel)
+        {
+            if (!_permissionService.Authorize(StandardPermissionProvider.ManageProductReviews))
+                return AccessDeniedKendoGridJson();
+            var productReview = _productService.GetProductReviewById(searchModel.ProductReviewId)
+                ?? throw new ArgumentException("No product review found with the specified id");
+
+            //prepare model
+            var model = _productReviewModelFactory.PrepareProductReviewReviewTypeMappingListModel(searchModel, productReview);
+
+            return Json(model);
         }
 
         #endregion

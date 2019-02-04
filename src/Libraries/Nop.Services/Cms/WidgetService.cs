@@ -14,22 +14,17 @@ namespace Nop.Services.Cms
     {
         #region Fields
 
-        private readonly IPluginFinder _pluginFinder;
+        private readonly IPluginService _pluginService;
         private readonly WidgetSettings _widgetSettings;
 
         #endregion
-        
+
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="pluginFinder">Plugin finder</param>
-        /// <param name="widgetSettings">Widget settings</param>
-        public WidgetService(IPluginFinder pluginFinder,
+        public WidgetService(IPluginService pluginService,
             WidgetSettings widgetSettings)
         {
-            this._pluginFinder = pluginFinder;
+            this._pluginService = pluginService;
             this._widgetSettings = widgetSettings;
         }
 
@@ -56,7 +51,7 @@ namespace Nop.Services.Cms
         /// <param name="customer">Load records allowed only to a specified customer; pass null to ignore ACL permissions</param>
         /// <param name="storeId">Load records allowed only in a specified store; pass 0 to load all records</param>
         /// <returns>Widgets</returns>
-        public virtual IList<IWidgetPlugin> LoadActiveWidgetsByWidgetZone(string  widgetZone, Customer customer = null, int storeId = 0)
+        public virtual IList<IWidgetPlugin> LoadActiveWidgetsByWidgetZone(string widgetZone, Customer customer = null, int storeId = 0)
         {
             if (string.IsNullOrWhiteSpace(widgetZone))
                 return new List<IWidgetPlugin>();
@@ -72,11 +67,8 @@ namespace Nop.Services.Cms
         /// <returns>Found widget</returns>
         public virtual IWidgetPlugin LoadWidgetBySystemName(string systemName)
         {
-            var descriptor = _pluginFinder.GetPluginDescriptorBySystemName<IWidgetPlugin>(systemName);
-            if (descriptor != null)
-                return descriptor.Instance<IWidgetPlugin>();
-
-            return null;
+            var descriptor = _pluginService.GetPluginDescriptorBySystemName<IWidgetPlugin>(systemName);
+            return descriptor?.Instance<IWidgetPlugin>();
         }
 
         /// <summary>
@@ -87,9 +79,28 @@ namespace Nop.Services.Cms
         /// <returns>Widgets</returns>
         public virtual IList<IWidgetPlugin> LoadAllWidgets(Customer customer = null, int storeId = 0)
         {
-            return _pluginFinder.GetPlugins<IWidgetPlugin>(customer: customer, storeId: storeId).ToList();
+            return _pluginService.GetPlugins<IWidgetPlugin>(customer: customer, storeId: storeId).ToList();
         }
-        
+
+        /// <summary>
+        /// Is widget active
+        /// </summary>
+        /// <param name="widget">Widget</param>
+        /// <returns>Result</returns>
+        public virtual bool IsWidgetActive(IWidgetPlugin widget)
+        {
+            if (widget == null)
+                throw new ArgumentNullException(nameof(widget));
+
+            if (_widgetSettings.ActiveWidgetSystemNames == null)
+                return false;
+
+            foreach (var activeMethodSystemName in _widgetSettings.ActiveWidgetSystemNames)
+                if (widget.PluginDescriptor.SystemName.Equals(activeMethodSystemName, StringComparison.InvariantCultureIgnoreCase))
+                    return true;
+
+            return false;
+        }
         #endregion
     }
 }

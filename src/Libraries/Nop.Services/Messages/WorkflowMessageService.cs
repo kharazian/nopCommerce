@@ -28,63 +28,54 @@ namespace Nop.Services.Messages
     {
         #region Fields
 
-        private readonly IMessageTemplateService _messageTemplateService;
-        private readonly IQueuedEmailService _queuedEmailService;
-        private readonly ILanguageService _languageService;
-        private readonly ITokenizer _tokenizer;
-        private readonly IEmailAccountService _emailAccountService;
-        private readonly IMessageTokenProvider _messageTokenProvider;
-        private readonly IStoreService _storeService;
-        private readonly IStoreContext _storeContext;
         private readonly CommonSettings _commonSettings;
         private readonly EmailAccountSettings _emailAccountSettings;
-        private readonly IEventPublisher _eventPublisher;
         private readonly IAffiliateService _affiliateService;
+        private readonly ICustomerService _customerService;
+        private readonly IEmailAccountService _emailAccountService;
+        private readonly IEventPublisher _eventPublisher;
+        private readonly ILanguageService _languageService;
+        private readonly ILocalizationService _localizationService;
+        private readonly IMessageTemplateService _messageTemplateService;
+        private readonly IMessageTokenProvider _messageTokenProvider;
+        private readonly IQueuedEmailService _queuedEmailService;
+        private readonly IStoreContext _storeContext;
+        private readonly IStoreService _storeService;
+        private readonly ITokenizer _tokenizer;
 
         #endregion
 
         #region Ctor
 
-        /// <summary>
-        /// Ctor
-        /// </summary>
-        /// <param name="messageTemplateService">Message template service</param>
-        /// <param name="queuedEmailService">Queued email service</param>
-        /// <param name="languageService">Language service</param>
-        /// <param name="tokenizer">Tokenizer</param>
-        /// <param name="emailAccountService">Email account service</param>
-        /// <param name="messageTokenProvider">Message token provider</param>
-        /// <param name="storeService">Store service</param>
-        /// <param name="storeContext">Store context</param>
-        /// <param name="commonSettings">Common settings</param>
-        /// <param name="emailAccountSettings">Email account settings</param>
-        /// <param name="eventPublisher">Event publisher</param>
-        /// <param name="affiliateService">Affiliate service</param>
-        public WorkflowMessageService(IMessageTemplateService messageTemplateService,
-            IQueuedEmailService queuedEmailService,
-            ILanguageService languageService,
-            ITokenizer tokenizer,
-            IEmailAccountService emailAccountService,
-            IMessageTokenProvider messageTokenProvider,
-            IStoreService storeService,
-            IStoreContext storeContext,
-            CommonSettings commonSettings,
+        public WorkflowMessageService(CommonSettings commonSettings,
             EmailAccountSettings emailAccountSettings,
+            IAffiliateService affiliateService,
+            ICustomerService customerService,
+            IEmailAccountService emailAccountService,
             IEventPublisher eventPublisher,
-            IAffiliateService affiliateService)
+            ILanguageService languageService,
+            ILocalizationService localizationService,
+            IMessageTemplateService messageTemplateService,
+            IMessageTokenProvider messageTokenProvider,
+            IQueuedEmailService queuedEmailService,
+            IStoreContext storeContext,
+            IStoreService storeService,
+            ITokenizer tokenizer)
         {
-            this._messageTemplateService = messageTemplateService;
-            this._queuedEmailService = queuedEmailService;
-            this._languageService = languageService;
-            this._tokenizer = tokenizer;
-            this._emailAccountService = emailAccountService;
-            this._messageTokenProvider = messageTokenProvider;
-            this._storeService = storeService;
-            this._storeContext = storeContext;
             this._commonSettings = commonSettings;
             this._emailAccountSettings = emailAccountSettings;
-            this._eventPublisher = eventPublisher;
             this._affiliateService = affiliateService;
+            this._customerService = customerService;
+            this._emailAccountService = emailAccountService;
+            this._eventPublisher = eventPublisher;
+            this._languageService = languageService;
+            this._localizationService = localizationService;
+            this._messageTemplateService = messageTemplateService;
+            this._messageTokenProvider = messageTokenProvider;
+            this._queuedEmailService = queuedEmailService;
+            this._storeContext = storeContext;
+            this._storeService = storeService;
+            this._tokenizer = tokenizer;
         }
 
         #endregion
@@ -120,16 +111,13 @@ namespace Nop.Services.Messages
         /// <returns>EmailAccount</returns>
         protected virtual EmailAccount GetEmailAccountOfMessageTemplate(MessageTemplate messageTemplate, int languageId)
         {
-            var emailAccountId = messageTemplate.GetLocalized(mt => mt.EmailAccountId, languageId);
+            var emailAccountId = _localizationService.GetLocalized(messageTemplate, mt => mt.EmailAccountId, languageId);
             //some 0 validation (for localizable "Email account" dropdownlist which saves 0 if "Standard" value is chosen)
             if (emailAccountId == 0)
                 emailAccountId = messageTemplate.EmailAccountId;
 
-            var emailAccount = _emailAccountService.GetEmailAccountById(emailAccountId);
-            if (emailAccount == null)
-                emailAccount = _emailAccountService.GetEmailAccountById(_emailAccountSettings.DefaultEmailAccountId);
-            if (emailAccount == null)
-                emailAccount = _emailAccountService.GetAllEmailAccounts().FirstOrDefault();
+            var emailAccount = (_emailAccountService.GetEmailAccountById(emailAccountId) ?? _emailAccountService.GetEmailAccountById(_emailAccountSettings.DefaultEmailAccountId)) ??
+                               _emailAccountService.GetAllEmailAccounts().FirstOrDefault();
             return emailAccount;
         }
 
@@ -149,6 +137,7 @@ namespace Nop.Services.Messages
                 //load any language from the specified store
                 language = _languageService.GetAllLanguages(storeId: storeId).FirstOrDefault();
             }
+
             if (language == null || !language.Published)
             {
                 //load any language
@@ -157,6 +146,7 @@ namespace Nop.Services.Messages
 
             if (language == null)
                 throw new Exception("No active language could be loaded");
+
             return language.Id;
         }
 
@@ -240,7 +230,7 @@ namespace Nop.Services.Messages
                 _eventPublisher.MessageTokensAdded(messageTemplate, tokens);
 
                 var toEmail = customer.Email;
-                var toName = customer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -280,7 +270,7 @@ namespace Nop.Services.Messages
                 _eventPublisher.MessageTokensAdded(messageTemplate, tokens);
 
                 var toEmail = customer.Email;
-                var toName = customer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -321,7 +311,7 @@ namespace Nop.Services.Messages
 
                 //email to re-validate
                 var toEmail = customer.EmailToRevalidate;
-                var toName = customer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -361,7 +351,7 @@ namespace Nop.Services.Messages
                 _eventPublisher.MessageTokensAdded(messageTemplate, tokens);
 
                 var toEmail = customer.Email;
-                var toName = customer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -557,7 +547,7 @@ namespace Nop.Services.Messages
 
             var affiliate = _affiliateService.GetAffiliateById(order.AffiliateId);
 
-            if(affiliate == null)
+            if (affiliate == null)
                 throw new ArgumentNullException(nameof(affiliate));
 
             var store = _storeService.GetStoreById(order.StoreId) ?? _storeContext.CurrentStore;
@@ -1420,7 +1410,7 @@ namespace Nop.Services.Messages
                     returnRequest.Customer.Email;
                 var toName = returnRequest.Customer.IsGuest() ?
                     orderItem.Order.BillingAddress.FirstName :
-                    returnRequest.Customer.GetFullName();
+                    _customerService.GetCustomerFullName(returnRequest.Customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -1467,7 +1457,7 @@ namespace Nop.Services.Messages
                     returnRequest.Customer.Email;
                 var toName = returnRequest.Customer.IsGuest() ?
                     orderItem.Order.BillingAddress.FirstName :
-                    returnRequest.Customer.GetFullName();
+                    _customerService.GetCustomerFullName(returnRequest.Customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -1514,7 +1504,7 @@ namespace Nop.Services.Messages
                 _eventPublisher.MessageTokensAdded(messageTemplate, tokens);
 
                 var toEmail = customer.Email;
-                var toName = customer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -1561,7 +1551,7 @@ namespace Nop.Services.Messages
                 _eventPublisher.MessageTokensAdded(messageTemplate, tokens);
 
                 var toEmail = customer.Email;
-                var toName = customer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -1601,7 +1591,7 @@ namespace Nop.Services.Messages
                 _eventPublisher.MessageTokensAdded(messageTemplate, tokens);
 
                 var toEmail = privateMessage.ToCustomer.Email;
-                var toName = privateMessage.ToCustomer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(privateMessage.ToCustomer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -1707,7 +1697,7 @@ namespace Nop.Services.Messages
             if (giftCard == null)
                 throw new ArgumentNullException(nameof(giftCard));
 
-            var order = giftCard.PurchasedWithOrderItem != null ? giftCard.PurchasedWithOrderItem.Order : null;
+            var order = giftCard.PurchasedWithOrderItem?.Order;
             var store = order != null ? _storeService.GetStoreById(order.StoreId) ?? _storeContext.CurrentStore : _storeContext.CurrentStore;
 
             languageId = EnsureLanguageIsActive(languageId, store.Id);
@@ -1814,7 +1804,7 @@ namespace Nop.Services.Messages
                 _eventPublisher.MessageTokensAdded(messageTemplate, tokens);
 
                 var toEmail = productReview.Customer.Email;
-                var toName = productReview.Customer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(productReview.Customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -2063,7 +2053,7 @@ namespace Nop.Services.Messages
 
                 var customer = subscription.Customer;
                 var toEmail = customer.Email;
-                var toName = customer.GetFullName();
+                var toName = _customerService.GetCustomerFullName(customer);
 
                 return SendNotification(messageTemplate, emailAccount, languageId, tokens, toEmail, toName);
             }).ToList();
@@ -2089,10 +2079,12 @@ namespace Nop.Services.Messages
                 return new List<int>();
 
             //tokens
-            var commonTokens = new List<Token>();
-            commonTokens.Add(new Token("ContactUs.SenderEmail", senderEmail));
-            commonTokens.Add(new Token("ContactUs.SenderName", senderName));
-            commonTokens.Add(new Token("ContactUs.Body", body, true));
+            var commonTokens = new List<Token>
+            {
+                new Token("ContactUs.SenderEmail", senderEmail),
+                new Token("ContactUs.SenderName", senderName),
+                new Token("ContactUs.Body", body, true)
+            };
 
             return messageTemplates.Select(messageTemplate =>
             {
@@ -2156,10 +2148,12 @@ namespace Nop.Services.Messages
                 return new List<int>();
 
             //tokens
-            var commonTokens = new List<Token>();
-            commonTokens.Add(new Token("ContactUs.SenderEmail", senderEmail));
-            commonTokens.Add(new Token("ContactUs.SenderName", senderName));
-            commonTokens.Add(new Token("ContactUs.Body", body, true));
+            var commonTokens = new List<Token>
+            {
+                new Token("ContactUs.SenderEmail", senderEmail),
+                new Token("ContactUs.SenderName", senderName),
+                new Token("ContactUs.Body", body, true)
+            };
 
             return messageTemplates.Select(messageTemplate =>
             {
@@ -2253,10 +2247,10 @@ namespace Nop.Services.Messages
                 throw new ArgumentNullException(nameof(emailAccount));
 
             //retrieve localized message template data
-            var bcc = messageTemplate.GetLocalized(mt => mt.BccEmailAddresses, languageId);
+            var bcc = _localizationService.GetLocalized(messageTemplate, mt => mt.BccEmailAddresses, languageId);
             if (string.IsNullOrEmpty(subject))
-                subject = messageTemplate.GetLocalized(mt => mt.Subject, languageId);
-            var body = messageTemplate.GetLocalized(mt => mt.Body, languageId);
+                subject = _localizationService.GetLocalized(messageTemplate, mt => mt.Subject, languageId);
+            var body = _localizationService.GetLocalized(messageTemplate, mt => mt.Body, languageId);
 
             //Replace subject and body tokens 
             var subjectReplaced = _tokenizer.Replace(subject, tokens, false);

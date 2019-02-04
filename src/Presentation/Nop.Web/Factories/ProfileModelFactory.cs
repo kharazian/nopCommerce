@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Nop.Core;
 using Nop.Core.Domain.Customers;
 using Nop.Core.Domain.Forums;
 using Nop.Core.Domain.Media;
@@ -10,7 +11,6 @@ using Nop.Services.Forums;
 using Nop.Services.Helpers;
 using Nop.Services.Localization;
 using Nop.Services.Media;
-using Nop.Services.Seo;
 using Nop.Web.Framework.Extensions;
 using Nop.Web.Models.Common;
 using Nop.Web.Models.Profile;
@@ -24,35 +24,44 @@ namespace Nop.Web.Factories
     {
         #region Fields
 
+        private readonly CustomerSettings _customerSettings;
+        private readonly ForumSettings _forumSettings;
+        private readonly ICountryService _countryService;
+        private readonly ICustomerService _customerService;
+        private readonly IDateTimeHelper _dateTimeHelper;
         private readonly IForumService _forumService;
+        private readonly IGenericAttributeService _genericAttributeService;
         private readonly ILocalizationService _localizationService;
         private readonly IPictureService _pictureService;
-        private readonly ICountryService _countryService;
-        private readonly IDateTimeHelper _dateTimeHelper;
-        private readonly ForumSettings _forumSettings;
-        private readonly CustomerSettings _customerSettings;
+        private readonly IWorkContext _workContext;
         private readonly MediaSettings _mediaSettings;
 
         #endregion
 
         #region Ctor
 
-        public ProfileModelFactory(IForumService forumService,
+        public ProfileModelFactory(CustomerSettings customerSettings,
+            ForumSettings forumSettings,
+            ICountryService countryService,
+            ICustomerService customerService,
+            IDateTimeHelper dateTimeHelper,
+            IForumService forumService,
+            IGenericAttributeService genericAttributeService,
             ILocalizationService localizationService,
             IPictureService pictureService,
-            ICountryService countryService,
-            IDateTimeHelper dateTimeHelper,
-            ForumSettings forumSettings,
-            CustomerSettings customerSettings,
+            IWorkContext workContext,
             MediaSettings mediaSettings)
         {
+            this._customerSettings = customerSettings;
+            this._forumSettings = forumSettings;
+            this._countryService = countryService;
+            this._customerService = customerService;
+            this._dateTimeHelper = dateTimeHelper;
             this._forumService = forumService;
+            this._genericAttributeService = genericAttributeService;
             this._localizationService = localizationService;
             this._pictureService = pictureService;
-            this._countryService = countryService;
-            this._dateTimeHelper = dateTimeHelper;
-            this._forumSettings = forumSettings;
-            this._customerSettings = customerSettings;
+            this._workContext = workContext;
             this._mediaSettings = mediaSettings;
         }
 
@@ -69,7 +78,7 @@ namespace Nop.Web.Factories
         public virtual ProfileIndexModel PrepareProfileIndexModel(Customer customer, int? page)
         {
             if (customer == null)
-                throw  new ArgumentNullException(nameof(customer));
+                throw new ArgumentNullException(nameof(customer));
 
             var pagingPosts = false;
             var postsPage = 0;
@@ -80,7 +89,7 @@ namespace Nop.Web.Factories
                 pagingPosts = true;
             }
 
-            var name = customer.FormatUserName();
+            var name = _customerService.FormatUserName(customer);
             var title = string.Format(_localizationService.GetResource("Profile.ProfileOf"), name);
 
             var model = new ProfileIndexModel
@@ -108,8 +117,8 @@ namespace Nop.Web.Factories
             var avatarUrl = "";
             if (_customerSettings.AllowCustomersToUploadAvatars)
             {
-                avatarUrl =_pictureService.GetPictureUrl(
-                 customer.GetAttribute<int>(SystemCustomerAttributeNames.AvatarPictureId),
+                avatarUrl = _pictureService.GetPictureUrl(
+                 _genericAttributeService.GetAttribute<int>(customer, NopCustomerDefaults.AvatarPictureIdAttribute),
                  _mediaSettings.AvatarPictureSize,
                  _customerSettings.DefaultAvatarEnabled,
                  defaultPictureType: PictureType.Avatar);
@@ -122,11 +131,11 @@ namespace Nop.Web.Factories
             {
                 locationEnabled = true;
 
-                var countryId = customer.GetAttribute<int>(SystemCustomerAttributeNames.CountryId);
+                var countryId = _genericAttributeService.GetAttribute<int>(customer, NopCustomerDefaults.CountryIdAttribute);
                 var country = _countryService.GetCountryById(countryId);
                 if (country != null)
                 {
-                    location = country.GetLocalized(x => x.Name);
+                    location = _localizationService.GetLocalized(country, x => x.Name);
                 }
                 else
                 {
@@ -143,7 +152,7 @@ namespace Nop.Web.Factories
             if (_forumSettings.ForumsEnabled && _forumSettings.ShowCustomersPostCount)
             {
                 totalPostsEnabled = true;
-                totalPosts = customer.GetAttribute<int>(SystemCustomerAttributeNames.ForumPostCount);
+                totalPosts = _genericAttributeService.GetAttribute<int>(customer, NopCustomerDefaults.ForumPostCountAttribute);
             }
 
             //registration date
@@ -161,7 +170,7 @@ namespace Nop.Web.Factories
             var dateOfBirth = string.Empty;
             if (_customerSettings.DateOfBirthEnabled)
             {
-                var dob = customer.GetAttribute<DateTime?>(SystemCustomerAttributeNames.DateOfBirth);
+                var dob = _genericAttributeService.GetAttribute<DateTime?>(customer, NopCustomerDefaults.DateOfBirthAttribute);
                 if (dob.HasValue)
                 {
                     dateOfBirthEnabled = true;
@@ -214,7 +223,9 @@ namespace Nop.Web.Factories
                 var posted = string.Empty;
                 if (_forumSettings.RelativeDateTimeFormattingEnabled)
                 {
-                    posted = forumPost.CreatedOnUtc.RelativeFormat(true, "f");
+                    var languageCode = _workContext.WorkingLanguage.LanguageCulture;
+                    var postedAgo = forumPost.CreatedOnUtc.RelativeFormat(languageCode);
+                    posted = string.Format(_localizationService.GetResource("Common.RelativeDateTime.Past"), postedAgo);
                 }
                 else
                 {
@@ -225,8 +236,8 @@ namespace Nop.Web.Factories
                 {
                     ForumTopicId = forumPost.TopicId,
                     ForumTopicTitle = forumPost.ForumTopic.Subject,
-                    ForumTopicSlug = forumPost.ForumTopic.GetSeName(),
-                    ForumPostText = forumPost.FormatPostText(),
+                    ForumTopicSlug = _forumService.GetTopicSeName(forumPost.ForumTopic),
+                    ForumPostText = _forumService.FormatPostText(forumPost),
                     Posted = posted
                 });
             }

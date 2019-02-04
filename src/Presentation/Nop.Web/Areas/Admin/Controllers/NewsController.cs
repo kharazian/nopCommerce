@@ -6,12 +6,13 @@ using Nop.Core.Domain.News;
 using Nop.Services.Events;
 using Nop.Services.Localization;
 using Nop.Services.Logging;
+using Nop.Services.Messages;
 using Nop.Services.News;
 using Nop.Services.Security;
 using Nop.Services.Seo;
 using Nop.Services.Stores;
-using Nop.Web.Areas.Admin.Extensions;
 using Nop.Web.Areas.Admin.Factories;
+using Nop.Web.Areas.Admin.Infrastructure.Mapper.Extensions;
 using Nop.Web.Areas.Admin.Models.News;
 using Nop.Web.Framework.Mvc;
 using Nop.Web.Framework.Mvc.Filters;
@@ -27,6 +28,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         private readonly ILocalizationService _localizationService;
         private readonly INewsModelFactory _newsModelFactory;
         private readonly INewsService _newsService;
+        private readonly INotificationService _notificationService;
         private readonly IPermissionService _permissionService;
         private readonly IStoreMappingService _storeMappingService;
         private readonly IStoreService _storeService;
@@ -41,6 +43,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             ILocalizationService localizationService,
             INewsModelFactory newsModelFactory,
             INewsService newsService,
+            INotificationService notificationService,
             IPermissionService permissionService,
             IStoreMappingService storeMappingService,
             IStoreService storeService,
@@ -51,6 +54,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             this._localizationService = localizationService;
             this._newsModelFactory = newsModelFactory;
             this._newsService = newsService;
+            this._notificationService = notificationService;
             this._permissionService = permissionService;
             this._storeMappingService = storeMappingService;
             this._storeService = storeService;
@@ -87,6 +91,8 @@ namespace Nop.Web.Areas.Admin.Controllers
 
         #endregion
 
+        #region Methods        
+
         #region News items
 
         public virtual IActionResult Index()
@@ -94,13 +100,13 @@ namespace Nop.Web.Areas.Admin.Controllers
             return RedirectToAction("List");
         }
 
-        public virtual IActionResult List()
+        public virtual IActionResult List(int? filterByNewsItemId)
         {
             if (!_permissionService.Authorize(StandardPermissionProvider.ManageNews))
                 return AccessDeniedView();
 
             //prepare model
-            var model = _newsModelFactory.PrepareNewsItemSearchModel(new NewsItemSearchModel());
+            var model = _newsModelFactory.PrepareNewsContentModel(new NewsContentModel(), filterByNewsItemId);
 
             return View(model);
         }
@@ -117,7 +123,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             return Json(model);
         }
 
-        public virtual IActionResult Create()
+        public virtual IActionResult NewsItemCreate()
         {
             if (!_permissionService.Authorize(StandardPermissionProvider.ManageNews))
                 return AccessDeniedView();
@@ -129,16 +135,14 @@ namespace Nop.Web.Areas.Admin.Controllers
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
-        public virtual IActionResult Create(NewsItemModel model, bool continueEditing)
+        public virtual IActionResult NewsItemCreate(NewsItemModel model, bool continueEditing)
         {
             if (!_permissionService.Authorize(StandardPermissionProvider.ManageNews))
                 return AccessDeniedView();
 
             if (ModelState.IsValid)
             {
-                var newsItem = model.ToEntity();
-                newsItem.StartDateUtc = model.StartDate;
-                newsItem.EndDateUtc = model.EndDate;
+                var newsItem = model.ToEntity<NewsItem>();
                 newsItem.CreatedOnUtc = DateTime.UtcNow;
                 _newsService.InsertNews(newsItem);
 
@@ -147,13 +151,13 @@ namespace Nop.Web.Areas.Admin.Controllers
                     string.Format(_localizationService.GetResource("ActivityLog.AddNewNews"), newsItem.Id), newsItem);
 
                 //search engine name
-                var seName = newsItem.ValidateSeName(model.SeName, model.Title, true);
+                var seName = _urlRecordService.ValidateSeName(newsItem, model.SeName, model.Title, true);
                 _urlRecordService.SaveSlug(newsItem, seName, newsItem.LanguageId);
 
                 //Stores
                 SaveStoreMappings(newsItem, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.News.NewsItems.Added"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.News.NewsItems.Added"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -161,7 +165,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //selected tab
                 SaveSelectedTabName();
 
-                return RedirectToAction("Edit", new { id = newsItem.Id });
+                return RedirectToAction("NewsItemEdit", new { id = newsItem.Id });
             }
 
             //prepare model
@@ -171,7 +175,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             return View(model);
         }
 
-        public virtual IActionResult Edit(int id)
+        public virtual IActionResult NewsItemEdit(int id)
         {
             if (!_permissionService.Authorize(StandardPermissionProvider.ManageNews))
                 return AccessDeniedView();
@@ -188,7 +192,7 @@ namespace Nop.Web.Areas.Admin.Controllers
         }
 
         [HttpPost, ParameterBasedOnFormName("save-continue", "continueEditing")]
-        public virtual IActionResult Edit(NewsItemModel model, bool continueEditing)
+        public virtual IActionResult NewsItemEdit(NewsItemModel model, bool continueEditing)
         {
             if (!_permissionService.Authorize(StandardPermissionProvider.ManageNews))
                 return AccessDeniedView();
@@ -201,8 +205,6 @@ namespace Nop.Web.Areas.Admin.Controllers
             if (ModelState.IsValid)
             {
                 newsItem = model.ToEntity(newsItem);
-                newsItem.StartDateUtc = model.StartDate;
-                newsItem.EndDateUtc = model.EndDate;
                 _newsService.UpdateNews(newsItem);
 
                 //activity log
@@ -210,13 +212,13 @@ namespace Nop.Web.Areas.Admin.Controllers
                     string.Format(_localizationService.GetResource("ActivityLog.EditNews"), newsItem.Id), newsItem);
 
                 //search engine name
-                var seName = newsItem.ValidateSeName(model.SeName, model.Title, true);
+                var seName = _urlRecordService.ValidateSeName(newsItem, model.SeName, model.Title, true);
                 _urlRecordService.SaveSlug(newsItem, seName, newsItem.LanguageId);
 
                 //stores
                 SaveStoreMappings(newsItem, model);
 
-                SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.News.NewsItems.Updated"));
+                _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.News.NewsItems.Updated"));
 
                 if (!continueEditing)
                     return RedirectToAction("List");
@@ -224,7 +226,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 //selected tab
                 SaveSelectedTabName();
 
-                return RedirectToAction("Edit", new { id = newsItem.Id });
+                return RedirectToAction("NewsItemEdit", new { id = newsItem.Id });
             }
 
             //prepare model
@@ -251,7 +253,7 @@ namespace Nop.Web.Areas.Admin.Controllers
             _customerActivityService.InsertActivity("DeleteNews",
                 string.Format(_localizationService.GetResource("ActivityLog.DeleteNews"), newsItem.Id), newsItem);
 
-            SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.News.NewsItems.Deleted"));
+            _notificationService.SuccessNotification(_localizationService.GetResource("Admin.ContentManagement.News.NewsItems.Deleted"));
 
             return RedirectToAction("List");
         }
@@ -270,8 +272,6 @@ namespace Nop.Web.Areas.Admin.Controllers
             if (newsItem == null && filterByNewsItemId.HasValue)
                 return RedirectToAction("List");
 
-            ViewBag.FilterByNewsItemId = filterByNewsItemId;
-
             //prepare model
             var model = _newsModelFactory.PrepareNewsCommentSearchModel(new NewsCommentSearchModel(), newsItem);
 
@@ -279,18 +279,13 @@ namespace Nop.Web.Areas.Admin.Controllers
         }
 
         [HttpPost]
-        public virtual IActionResult Comments(NewsCommentSearchModel searchModel, int? filterByNewsItemId)
+        public virtual IActionResult Comments(NewsCommentSearchModel searchModel)
         {
             if (!_permissionService.Authorize(StandardPermissionProvider.ManageNews))
                 return AccessDeniedKendoGridJson();
 
-            //try to get a news item with the specified id
-            var newsItem = _newsService.GetNewsById(filterByNewsItemId ?? 0);
-            if (newsItem == null && filterByNewsItemId.HasValue)
-                throw new ArgumentException("No news item found with the specified id", nameof(filterByNewsItemId));
-
             //prepare model
-            var model = _newsModelFactory.PrepareNewsCommentListModel(searchModel, newsItem);
+            var model = _newsModelFactory.PrepareNewsCommentListModel(searchModel, searchModel.NewsItemId);
 
             return Json(model);
         }
@@ -307,7 +302,8 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             var previousIsApproved = comment.IsApproved;
 
-            comment.IsApproved = model.IsApproved;
+            //fill entity from model
+            comment = model.ToEntity(comment);
             _newsService.UpdateNews(comment.NewsItem);
 
             //activity log
@@ -415,6 +411,8 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             return Json(new { Result = true });
         }
+
+        #endregion
 
         #endregion
     }

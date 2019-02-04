@@ -56,9 +56,19 @@ namespace Nop.Web.Areas.Admin.Controllers
 
         [HttpPost]
         //do not validate request token (XSRF)
-        [AdminAntiForgery(true)] 
+        [AdminAntiForgery(true)]
         public virtual IActionResult SaveDownloadUrl(string downloadUrl)
         {
+            //don't allow to save empty download object
+            if (string.IsNullOrEmpty(downloadUrl))
+            {
+                return Json(new
+                {
+                    success = false,
+                    message = "Please enter URL"
+                });
+            }
+
             //insert
             var download = new Download
             {
@@ -66,10 +76,10 @@ namespace Nop.Web.Areas.Admin.Controllers
                 UseDownloadUrl = true,
                 DownloadUrl = downloadUrl,
                 IsNew = true
-              };
+            };
             _downloadService.InsertDownload(download);
 
-            return Json(new { downloadId = download.Id });
+            return Json(new { success = true, downloadId = download.Id });
         }
 
         [HttpPost]
@@ -88,7 +98,7 @@ namespace Nop.Web.Areas.Admin.Controllers
                 });
             }
 
-            var fileBinary = httpPostedFile.GetDownloadBits();
+            var fileBinary = _downloadService.GetDownloadBits(httpPostedFile);
 
             var qqFileNameParameter = "qqfilename";
             var fileName = httpPostedFile.FileName;
@@ -119,9 +129,12 @@ namespace Nop.Web.Areas.Admin.Controllers
 
             //when returning JSON the mime-type must be set to text/plain
             //otherwise some browsers will pop-up a "Save As" dialog.
-            return Json(new { success = true, 
-                downloadId = download.Id, 
-                downloadUrl = Url.Action("DownloadFile", new { downloadGuid = download.DownloadGuid }) });
+            return Json(new
+            {
+                success = true,
+                downloadId = download.Id,
+                downloadUrl = Url.Action("DownloadFile", new { downloadGuid = download.DownloadGuid })
+            });
         }
 
         #endregion

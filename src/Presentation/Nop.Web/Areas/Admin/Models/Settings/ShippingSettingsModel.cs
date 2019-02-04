@@ -7,7 +7,7 @@ namespace Nop.Web.Areas.Admin.Models.Settings
     /// <summary>
     /// Represents a shipping settings model
     /// </summary>
-    public partial class ShippingSettingsModel : BaseNopModel
+    public partial class ShippingSettingsModel : BaseNopModel, ISettingsModel
     {
         #region Ctor
 
@@ -33,6 +33,10 @@ namespace Nop.Web.Areas.Admin.Models.Settings
         [NopResourceDisplayName("Admin.Configuration.Settings.Shipping.DisplayPickupPointsOnMap")]
         public bool DisplayPickupPointsOnMap { get; set; }
         public bool DisplayPickupPointsOnMap_OverrideForStore { get; set; }
+
+        [NopResourceDisplayName("Admin.Configuration.Settings.Shipping.IgnoreAdditionalShippingChargeForPickUpInStore")]
+        public bool IgnoreAdditionalShippingChargeForPickUpInStore { get; set; }
+        public bool IgnoreAdditionalShippingChargeForPickUpInStore_OverrideForStore { get; set; }
 
         [NopResourceDisplayName("Admin.Configuration.Settings.Shipping.GoogleMapsApiKey")]
         public string GoogleMapsApiKey { get; set; }
